@@ -1,3 +1,4 @@
+use cosmic::{iced::Length, theme::spacing, widget, Element};
 use time::OffsetDateTime;
 
 pub struct Calendar {
@@ -22,11 +23,30 @@ impl Default for Calendar {
 }
 
 impl Calendar {
+    #[allow(unused)]
     pub fn new(current_date: OffsetDateTime) -> Self {
         Self {
             current_date,
             selected_date: current_date,
         }
+    }
+
+    pub fn month_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
+        widget::container(widget::text("Month view"))
+            .center(Length::Fill)
+            .padding(spacing().space_xs)
+    }
+
+    pub fn week_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
+        widget::container(widget::text("Week view"))
+            .center(Length::Fill)
+            .padding(spacing().space_xs)
+    }
+
+    pub fn day_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
+        widget::container(widget::text("Day view"))
+            .center(Length::Fill)
+            .padding(spacing().space_xs)
     }
 
     pub fn set_today(&mut self) {

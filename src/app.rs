@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+use crate::components::Calendar;
 use crate::config::Config;
 use crate::fl;
 use cosmic::app::context_drawer;
@@ -8,7 +9,8 @@ use cosmic::iced::alignment::{Horizontal, Vertical};
 use cosmic::iced::{Alignment, Length, Subscription};
 use cosmic::prelude::*;
 use cosmic::theme::spacing;
-use cosmic::widget::{self, icon, menu, nav_bar};
+use cosmic::widget::segmented_button::SingleSelect;
+use cosmic::widget::{self, menu, nav_bar};
 use cosmic::{cosmic_theme, theme};
 use futures_util::SinkExt;
 use std::collections::HashMap;
@@ -17,8 +19,6 @@ mod flags;
 pub use flags::*;
 mod settings;
 pub use settings::*;
-mod calendar;
-pub use calendar::*;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
@@ -32,6 +32,8 @@ pub struct AppModel {
     context_page: ContextPage,
     /// Contains items assigned to the nav bar panel.
     nav: nav_bar::Model,
+    /// Contains items assigned to the tab bar.
+    tabs: widget::segmented_button::Model<SingleSelect>,
     /// Key bindings for the application's menu bar.
     key_binds: HashMap<menu::KeyBind, MenuAction>,
     // Configuration data that persists between application runs.
@@ -54,6 +56,7 @@ pub enum Message {
     NavigatePreviousYear,
     NavigateToday,
     AddEvent,
+    TabSelected(widget::segmented_button::Entity),
 }
 
 /// Create a COSMIC application from the app model
@@ -84,29 +87,34 @@ impl cosmic::Application for AppModel {
         _flags: Self::Flags,
     ) -> (Self, Task<cosmic::Action<Self::Message>>) {
         // Create a nav bar with three page items.
-        let mut nav = nav_bar::Model::default();
+        let nav = nav_bar::Model::default();
 
-        nav.insert()
-            .text(fl!("page-id", num = 1))
-            .data::<Page>(Page::Page1)
-            .icon(icon::from_name("applications-science-symbolic"))
-            .activate();
-
-        nav.insert()
-            .text(fl!("page-id", num = 2))
-            .data::<Page>(Page::Page2)
-            .icon(icon::from_name("applications-system-symbolic"));
-
-        nav.insert()
-            .text(fl!("page-id", num = 3))
-            .data::<Page>(Page::Page3)
-            .icon(icon::from_name("applications-games-symbolic"));
+        // Create a tab bar with three page items.
+        let tabs = widget::segmented_button::Model::builder()
+            .insert(|b| {
+                b.text(fl!("month"))
+                    .icon(widget::icon::from_name("office-calendar-symbolic"))
+                    .data(Tab::Month)
+                    .activate()
+            })
+            .insert(|b| {
+                b.text(fl!("week"))
+                    .icon(widget::icon::from_name("x-office-spreadsheet-symbolic"))
+                    .data(Tab::Week)
+            })
+            .insert(|b| {
+                b.text(fl!("day"))
+                    .icon(widget::icon::from_name("calendar-go-today-symbolic"))
+                    .data(Tab::Day)
+            })
+            .build();
 
         // Construct the app model with the runtime's core.
         let mut app = AppModel {
             core,
             context_page: ContextPage::default(),
             nav,
+            tabs,
             key_binds: HashMap::new(),
             // Optional configuration file for an application.
             config: cosmic_config::Config::new(Self::APP_ID, Config::VERSION)
@@ -152,7 +160,7 @@ impl cosmic::Application for AppModel {
                             .leading_icon(widget::icon::from_name("calendar-go-today-symbolic"))
                             .class(cosmic::style::Button::NavToggle)
                             .on_press_maybe(
-                                (!self.calendar.today()).then(|| Message::NavigateToday),
+                                (!self.calendar.today()).then_some(Message::NavigateToday),
                             ),
                     )
                     .push(widget::horizontal_space())
@@ -229,12 +237,31 @@ impl cosmic::Application for AppModel {
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
     fn view<'a>(&'a self) -> Element<'a, Self::Message> {
-        widget::text::title1(fl!("welcome"))
-            .apply(widget::container)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(Horizontal::Center)
-            .align_y(Vertical::Center)
+        let tabs = widget::segmented_button::horizontal(&self.tabs)
+            .padding(spacing().space_xxxs)
+            .button_spacing(spacing().space_xxs)
+            .button_alignment(cosmic::iced::Alignment::Center)
+            .on_activate(Message::TabSelected);
+
+        let active_tab = match self.tabs.active_data::<Tab>() {
+            Some(active_tab) => match active_tab {
+                Tab::Month => self.calendar.month_view().into(),
+                Tab::Week => self.calendar.week_view().into(),
+                Tab::Day => self.calendar.day_view().into(),
+            },
+            None => widget::text::title1(fl!("welcome"))
+                .apply(widget::container)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Horizontal::Center)
+                .align_y(Vertical::Center)
+                .into(),
+        };
+
+        widget::column()
+            .push(tabs)
+            .push(active_tab)
+            .spacing(spacing().space_xxs)
             .into()
     }
 
@@ -275,6 +302,9 @@ impl cosmic::Application for AppModel {
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
+            Message::TabSelected(tab) => {
+                self.tabs.activate(tab);
+            }
             Message::OpenRepositoryUrl => {
                 _ = open::that_detached(REPOSITORY);
             }
@@ -390,11 +420,11 @@ impl AppModel {
     }
 }
 
-/// The page to display in the application.
-pub enum Page {
-    Page1,
-    Page2,
-    Page3,
+/// The tab to display in the application.
+pub enum Tab {
+    Month,
+    Week,
+    Day,
 }
 
 /// The context page to display in the context drawer.

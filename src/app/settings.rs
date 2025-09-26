@@ -22,11 +22,9 @@ pub fn settings() -> Settings {
         .init();
 
     // Settings for configuring the application window and iced runtime.
-    let settings = Settings::default().size_limits(
+    Settings::default().size_limits(
         cosmic::iced::Limits::NONE
             .min_width(360.0)
             .min_height(180.0),
-    );
-
-    settings
+    )
 }

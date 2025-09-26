@@ -2,5 +2,5 @@
 pub struct Flags;
 
 pub fn flags() -> Flags {
-    Flags::default()
+    Flags
 }

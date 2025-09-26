@@ -6,3 +6,6 @@ page-id = Page { $num }
 git-description = Git commit {$hash} on {$date}
 
 today = Today
+month = Month
+week = Week
+day = Day
