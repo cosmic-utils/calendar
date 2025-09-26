@@ -1,4 +1,5 @@
 use cosmic::app::Settings;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use crate::i18n;
 
@@ -8,6 +9,17 @@ pub fn settings() -> Settings {
 
     // Enable localizations to be applied.
     i18n::init(&requested_languages);
+
+    // Initialize tracing subscriber.
+    if std::env::var("RUST_LOG").is_err() {
+        unsafe {
+            std::env::set_var("RUST_LOG", "cosmic_ext_calendar=info");
+        }
+    }
+    tracing_subscriber::registry()
+        .with(EnvFilter::from_env("RUST_LOG"))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
     // Settings for configuring the application window and iced runtime.
     let settings = Settings::default().size_limits(

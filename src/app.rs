@@ -7,6 +7,7 @@ use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::alignment::{Horizontal, Vertical};
 use cosmic::iced::{Alignment, Length, Subscription};
 use cosmic::prelude::*;
+use cosmic::theme::spacing;
 use cosmic::widget::{self, icon, menu, nav_bar};
 use cosmic::{cosmic_theme, theme};
 use futures_util::SinkExt;
@@ -16,6 +17,8 @@ mod flags;
 pub use flags::*;
 mod settings;
 pub use settings::*;
+mod calendar;
+pub use calendar::*;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
@@ -33,6 +36,8 @@ pub struct AppModel {
     key_binds: HashMap<menu::KeyBind, MenuAction>,
     // Configuration data that persists between application runs.
     config: Config,
+    // Calendar data that persists between application runs.
+    calendar: Calendar,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -43,6 +48,12 @@ pub enum Message {
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
     LaunchUrl(String),
+    NavigateNextMonth,
+    NavigatePreviousMonth,
+    NavigateNextYear,
+    NavigatePreviousYear,
+    NavigateToday,
+    AddEvent,
 }
 
 /// Create a COSMIC application from the app model
@@ -110,6 +121,7 @@ impl cosmic::Application for AppModel {
                     }
                 })
                 .unwrap_or_default(),
+            calendar: Calendar::default(),
         };
 
         // Create a startup command that sets the window title.
@@ -129,6 +141,67 @@ impl cosmic::Application for AppModel {
         )]);
 
         vec![menu_bar.into()]
+    }
+
+    fn footer<'a>(&'a self) -> Option<Element<'a, Self::Message>> {
+        Some(
+            widget::container(
+                widget::row()
+                    .push(
+                        widget::button::text(fl!("today"))
+                            .leading_icon(widget::icon::from_name("calendar-go-today-symbolic"))
+                            .class(cosmic::style::Button::NavToggle)
+                            .on_press_maybe(
+                                (!self.calendar.today()).then(|| Message::NavigateToday),
+                            ),
+                    )
+                    .push(widget::horizontal_space())
+                    .push(
+                        widget::row()
+                            .push(
+                                widget::button::icon(widget::icon::from_name(
+                                    "go-previous-symbolic",
+                                ))
+                                .on_press(Message::NavigatePreviousMonth),
+                            )
+                            .push(widget::text(
+                                self.calendar.selected_date.month().to_string(),
+                            ))
+                            .push(
+                                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
+                                    .on_press(Message::NavigateNextMonth),
+                            )
+                            .push(
+                                widget::button::icon(widget::icon::from_name(
+                                    "go-previous-symbolic",
+                                ))
+                                .on_press(Message::NavigatePreviousYear),
+                            )
+                            .push(widget::text(self.calendar.selected_date.year().to_string()))
+                            .push(
+                                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
+                                    .on_press(Message::NavigateNextYear),
+                            )
+                            .align_y(Vertical::Center)
+                            .spacing(spacing().space_xxs),
+                    )
+                    .push(widget::horizontal_space())
+                    .push(
+                        widget::row()
+                            .push(
+                                widget::button::icon(widget::icon::from_name("list-add-symbolic"))
+                                    .on_press(Message::AddEvent),
+                            )
+                            .align_y(Vertical::Center)
+                            .spacing(spacing().space_xxs),
+                    ),
+            )
+            .align_x(Horizontal::Center)
+            .class(cosmic::theme::Container::Card)
+            .padding(spacing().space_xxxs)
+            .width(Length::Fill)
+            .into(),
+        )
     }
 
     /// Enables the COSMIC application to create a nav bar with this model.
@@ -205,11 +278,9 @@ impl cosmic::Application for AppModel {
             Message::OpenRepositoryUrl => {
                 _ = open::that_detached(REPOSITORY);
             }
-
             Message::SubscriptionChannel => {
                 // For example purposes only.
             }
-
             Message::ToggleContextPage(context_page) => {
                 if self.context_page == context_page {
                     // Close the context drawer if the toggled context page is the same.
@@ -220,17 +291,40 @@ impl cosmic::Application for AppModel {
                     self.core.window.show_context = true;
                 }
             }
-
             Message::UpdateConfig(config) => {
                 self.config = config;
             }
-
             Message::LaunchUrl(url) => match open::that_detached(&url) {
                 Ok(()) => {}
                 Err(err) => {
                     eprintln!("failed to open {url:?}: {err}");
                 }
             },
+            Message::AddEvent => {
+                // Implement the logic to add a new event here.
+                // For example, you can open a dialog to input event details.
+            }
+            Message::NavigateToday => self.calendar.set_today(),
+            Message::NavigateNextMonth => {
+                if let Err(err) = self.calendar.next_month() {
+                    tracing::error!("failed to navigate to next month: {err}");
+                }
+            }
+            Message::NavigatePreviousMonth => {
+                if let Err(err) = self.calendar.previous_month() {
+                    tracing::error!("failed to navigate to previous month: {err}");
+                }
+            }
+            Message::NavigateNextYear => {
+                if let Err(err) = self.calendar.next_year() {
+                    tracing::error!("failed to navigate to next year: {err}");
+                }
+            }
+            Message::NavigatePreviousYear => {
+                if let Err(err) = self.calendar.previous_year() {
+                    tracing::error!("failed to navigate to previous year: {err}");
+                }
+            }
         }
         Task::none()
     }
