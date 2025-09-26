@@ -14,6 +14,7 @@ use cosmic::widget::{self, menu, nav_bar};
 use cosmic::{cosmic_theme, theme};
 use futures_util::SinkExt;
 use std::collections::HashMap;
+use time::OffsetDateTime;
 
 mod flags;
 pub use flags::*;
@@ -56,6 +57,7 @@ pub enum Message {
     NavigatePreviousYear,
     NavigateToday,
     AddEvent,
+    SelectDate(OffsetDateTime),
     TabSelected(widget::segmented_button::Entity),
 }
 
@@ -132,6 +134,8 @@ impl cosmic::Application for AppModel {
             calendar: Calendar::default(),
         };
 
+        app.core.nav_bar_set_toggled(false);
+
         // Create a startup command that sets the window title.
         let command = app.update_title();
 
@@ -151,13 +155,23 @@ impl cosmic::Application for AppModel {
         vec![menu_bar.into()]
     }
 
+    fn header_center<'a>(&'a self) -> Vec<Element<'a, Self::Message>> {
+        vec![widget::text(format!(
+            "{} {}",
+            self.calendar.selected_date.month(),
+            self.calendar.selected_date.year()
+        ))
+        .width(Length::Fill)
+        .into()]
+    }
+
     fn footer<'a>(&'a self) -> Option<Element<'a, Self::Message>> {
         Some(
             widget::container(
                 widget::row()
                     .push(
-                        widget::button::text(fl!("today"))
-                            .leading_icon(widget::icon::from_name("calendar-go-today-symbolic"))
+                        widget::button::icon(widget::icon::from_name("calendar-go-today-symbolic"))
+                            .tooltip(fl!("today"))
                             .class(cosmic::style::Button::NavToggle)
                             .on_press_maybe(
                                 (!self.calendar.today()).then_some(Message::NavigateToday),
@@ -198,6 +212,7 @@ impl cosmic::Application for AppModel {
                         widget::row()
                             .push(
                                 widget::button::icon(widget::icon::from_name("list-add-symbolic"))
+                                    .tooltip(fl!("crate-event"))
                                     .on_press(Message::AddEvent),
                             )
                             .align_y(Vertical::Center)
@@ -238,7 +253,7 @@ impl cosmic::Application for AppModel {
     /// events received by widgets will be passed to the update method.
     fn view<'a>(&'a self) -> Element<'a, Self::Message> {
         let tabs = widget::segmented_button::horizontal(&self.tabs)
-            .padding(spacing().space_xxxs)
+            .padding(2)
             .button_spacing(spacing().space_xxs)
             .button_alignment(cosmic::iced::Alignment::Center)
             .on_activate(Message::TabSelected);
@@ -249,7 +264,7 @@ impl cosmic::Application for AppModel {
                 Tab::Week => self.calendar.week_view().into(),
                 Tab::Day => self.calendar.day_view().into(),
             },
-            None => widget::text::title1(fl!("welcome"))
+            None => widget::text::title1("Welcome")
                 .apply(widget::container)
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -333,6 +348,9 @@ impl cosmic::Application for AppModel {
             Message::AddEvent => {
                 // Implement the logic to add a new event here.
                 // For example, you can open a dialog to input event details.
+            }
+            Message::SelectDate(date) => {
+                self.calendar.set_date(date);
             }
             Message::NavigateToday => self.calendar.set_today(),
             Message::NavigateNextMonth => {
