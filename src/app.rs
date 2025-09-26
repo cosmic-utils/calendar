@@ -114,7 +114,7 @@ impl cosmic::Application for AppModel {
     }
 
     /// Elements to pack at the start of the header bar.
-    fn header_start(&self) -> Vec<Element<Self::Message>> {
+    fn header_start<'a>(&'a self) -> Vec<Element<'a, Self::Message>> {
         let menu_bar = menu::bar(vec![menu::Tree::with_children(
             menu::root(fl!("view")).apply(Element::from),
             menu::items(
@@ -132,7 +132,7 @@ impl cosmic::Application for AppModel {
     }
 
     /// Display a context drawer if the context page is requested.
-    fn context_drawer(&self) -> Option<context_drawer::ContextDrawer<Self::Message>> {
+    fn context_drawer<'a>(&'a self) -> Option<context_drawer::ContextDrawer<'a, Self::Message>> {
         if !self.core.window.show_context {
             return None;
         }
@@ -150,7 +150,7 @@ impl cosmic::Application for AppModel {
     ///
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
-    fn view(&self) -> Element<Self::Message> {
+    fn view<'a>(&'a self) -> Element<'a, Self::Message> {
         widget::text::title1(fl!("welcome"))
             .apply(widget::container)
             .width(Length::Fill)
@@ -241,7 +241,7 @@ impl cosmic::Application for AppModel {
 
 impl AppModel {
     /// The about page for this app.
-    pub fn about(&self) -> Element<Message> {
+    pub fn about<'a>(&'a self) -> Element<'a, Message> {
         let cosmic_theme::Spacing { space_xxs, .. } = theme::active().cosmic().spacing;
 
         let icon = widget::svg(widget::svg::Handle::from_memory(APP_ICON));
