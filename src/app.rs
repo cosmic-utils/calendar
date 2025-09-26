@@ -52,6 +52,8 @@ pub enum Message {
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
     LaunchUrl(String),
+    NavigateNextDay,
+    NavigatePreviousDay,
     NavigateNextMonth,
     NavigatePreviousMonth,
     NavigateNextYear,
@@ -61,6 +63,7 @@ pub enum Message {
     SelectDate(OffsetDateTime),
     SelectMonth(usize),
     SelectYear(usize),
+    SelectDay(usize),
     TabSelected(widget::segmented_button::Entity),
 }
 
@@ -183,6 +186,28 @@ impl cosmic::Application for AppModel {
                     .push(widget::horizontal_space())
                     .push(
                         widget::row()
+                            .push(
+                                widget::button::icon(widget::icon::from_name(
+                                    "go-previous-symbolic",
+                                ))
+                                .on_press(Message::NavigatePreviousDay),
+                            )
+                            .push(widget::dropdown(
+                                self.calendar
+                                    .days()
+                                    .iter()
+                                    .map(|m| m.to_string())
+                                    .collect::<Vec<String>>(),
+                                self.calendar
+                                    .days()
+                                    .iter()
+                                    .position(|m| *m == self.calendar.selected_date.day()),
+                                Message::SelectDay,
+                            ))
+                            .push(
+                                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
+                                    .on_press(Message::NavigateNextDay),
+                            )
                             .push(
                                 widget::button::icon(widget::icon::from_name(
                                     "go-previous-symbolic",
@@ -376,6 +401,15 @@ impl cosmic::Application for AppModel {
             Message::SelectDate(date) => {
                 self.calendar.set_date(date);
             }
+            Message::SelectDay(idx) => {
+                let days = self.calendar.days();
+                let day = days.index(idx);
+                if let Ok(date) = self.calendar.selected_date.replace_day(*day) {
+                    self.calendar.set_date(date);
+                } else {
+                    tracing::error!("failed to select date");
+                }
+            }
             Message::SelectMonth(idx) => {
                 let months = self.calendar.months();
                 let month = months.index(idx);
@@ -395,6 +429,16 @@ impl cosmic::Application for AppModel {
                 }
             }
             Message::NavigateToday => self.calendar.set_today(),
+            Message::NavigateNextDay => {
+                if let Err(err) = self.calendar.next_day() {
+                    tracing::error!("failed to navigate to next day: {err}");
+                }
+            }
+            Message::NavigatePreviousDay => {
+                if let Err(err) = self.calendar.previous_day() {
+                    tracing::error!("failed to navigate to previous day: {err}");
+                }
+            }
             Message::NavigateNextMonth => {
                 if let Err(err) = self.calendar.next_month() {
                     tracing::error!("failed to navigate to next month: {err}");

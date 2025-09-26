@@ -1,9 +1,13 @@
 use cosmic::{
-    iced::{alignment::Horizontal, Color, Length},
+    iced::{alignment::Horizontal, Length},
     theme::spacing,
-    widget, Apply, Element,
+    widget, Element,
 };
 use time::{Month, OffsetDateTime, Weekday};
+
+mod day;
+mod month;
+mod week;
 
 pub struct Calendar {
     pub current_date: OffsetDateTime,
@@ -37,17 +41,17 @@ impl Calendar {
 
     pub fn month_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
         let weekday_headers = widget::row::with_children(vec![
-            self.weekday_header("Sun"),
-            self.weekday_header("Mon"),
-            self.weekday_header("Tue"),
-            self.weekday_header("Wed"),
-            self.weekday_header("Thu"),
-            self.weekday_header("Fri"),
-            self.weekday_header("Sat"),
+            month::weekday_header("Sun"),
+            month::weekday_header("Mon"),
+            month::weekday_header("Tue"),
+            month::weekday_header("Wed"),
+            month::weekday_header("Thu"),
+            month::weekday_header("Fri"),
+            month::weekday_header("Sat"),
         ])
         .spacing(spacing().space_xxs);
 
-        let calendar_grid = self.month_grid();
+        let calendar_grid = month::month_grid(&self.selected_date, &self.current_date);
 
         widget::column()
             .push(weekday_headers)
@@ -79,7 +83,7 @@ impl Calendar {
         let day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         for i in -1..7 {
             if i == -1 {
-                header_row = header_row.push(self.empty_day_header());
+                header_row = header_row.push(week::empty_day_header());
                 continue;
             }
 
@@ -87,11 +91,11 @@ impl Calendar {
             let is_today = day_date.date() == self.current_date.date();
 
             let day_header =
-                self.day_header(day_names[i as usize], day_date.day(), is_today, day_date);
+                week::day_header(day_names[i as usize], day_date.day(), is_today, day_date);
             header_row = header_row.push(day_header);
         }
 
-        let time_grid = self.week_grid(week_start);
+        let time_grid = week::week_grid(&week_start);
 
         widget::column()
             .push(header_row)
@@ -105,233 +109,40 @@ impl Calendar {
     }
 
     pub fn day_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
-        widget::container(widget::text("Day view"))
-            .center(Length::Fill)
+        let time_grid = day::single_day_time_grid(&self.selected_date);
+
+        widget::column()
+            .push(
+                widget::scrollable(time_grid)
+                    .height(Length::Fill)
+                    .spacing(spacing().space_xxxs),
+            )
+            .spacing(spacing().space_xs)
             .padding(spacing().space_xs)
-    }
-
-    fn weekday_header<'a>(&self, day: &'static str) -> Element<'a, crate::app::Message> {
-        widget::text::body(day)
-            .apply(widget::container)
-            .width(Length::Fill)
-            .center_x(Length::Fill)
-            .padding(spacing().space_xxxs)
-            .into()
-    }
-
-    fn day_header<'a>(
-        &self,
-        day_name: &'static str,
-        day_number: u8,
-        is_today: bool,
-        date: OffsetDateTime,
-    ) -> Element<'a, crate::app::Message> {
-        let header = widget::column()
-            .push(
-                widget::text::body(day_name)
-                    .font(if is_today {
-                        cosmic::font::bold()
-                    } else {
-                        cosmic::font::default()
-                    })
-                    .align_x(Horizontal::Center),
-            )
-            .push(widget::text::title4(day_number.to_string()).align_x(Horizontal::Center))
-            .align_x(Horizontal::Center);
-
-        widget::button::custom(header)
-            .width(Length::Fill)
-            .class(cosmic::style::Button::Text)
-            .on_press(crate::app::Message::SelectDate(date))
-            .height(60)
-            .into()
-    }
-
-    fn empty_day_header<'a>(&self) -> Element<'a, crate::app::Message> {
-        let header = widget::column()
-            .push(
-                widget::text::body("")
-                    .width(Length::Fill)
-                    .align_x(Horizontal::Center),
-            )
-            .push(
-                widget::text::title4("")
-                    .width(Length::Fill)
-                    .align_x(Horizontal::Center),
-            )
-            .padding(spacing().space_xxxs)
-            .align_x(Horizontal::Center)
-            .apply(widget::container);
-
-        widget::button::custom(header)
-            .width(Length::Fill)
-            .height(60)
-            .class(cosmic::style::Button::Text)
-            .into()
-    }
-
-    fn month_grid<'a>(&'a self) -> Element<'a, crate::app::Message> {
-        let current_date = self.selected_date;
-        let first_of_month = current_date.replace_day(1).unwrap();
-
-        let first_weekday = first_of_month.weekday();
-        let days_from_prev_month = match first_weekday {
-            Weekday::Sunday => 0,
-            Weekday::Monday => 1,
-            Weekday::Tuesday => 2,
-            Weekday::Wednesday => 3,
-            Weekday::Thursday => 4,
-            Weekday::Friday => 5,
-            Weekday::Saturday => 6,
-        };
-
-        let start_date = first_of_month
-            .checked_sub(time::Duration::days(days_from_prev_month as i64))
-            .unwrap();
-
-        let mut calendar_column = widget::column().spacing(spacing().space_xxs);
-
-        for week in 0..6 {
-            let mut week_row = widget::row().spacing(spacing().space_xxs);
-
-            for day in 0..7 {
-                let current_day_offset = week * 7 + day;
-                let display_date = start_date
-                    .checked_add(time::Duration::days(current_day_offset as i64))
-                    .unwrap();
-
-                let is_current_month = display_date.month() == current_date.month();
-                let is_today = display_date == self.current_date;
-                let is_selected = display_date == self.selected_date;
-
-                let day_button = self.day_button(
-                    display_date.day(),
-                    is_current_month,
-                    is_today,
-                    is_selected,
-                    display_date,
-                );
-                week_row = week_row.push(day_button);
-            }
-
-            calendar_column = calendar_column.push(week_row);
-        }
-
-        calendar_column.into()
-    }
-
-    fn day_button<'a>(
-        &self,
-        day: u8,
-        is_current_month: bool,
-        is_today: bool,
-        is_selected: bool,
-        date: OffsetDateTime,
-    ) -> impl Into<Element<'a, crate::app::Message>> {
-        let mut day_text = widget::text::body(day.to_string());
-
-        if !is_current_month {
-            day_text = day_text.class(cosmic::style::Text::Color(Color::from_rgb(0.5, 0.5, 0.5)));
-        }
-
-        let mut day_button = widget::button::custom(day_text)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .class(cosmic::style::Button::MenuFolder)
-            .on_press(crate::app::Message::SelectDate(
-                date.replace_day(day).unwrap(),
-            ));
-
-        if is_today {
-            day_button = day_button.class(cosmic::style::Button::Suggested);
-        } else if is_selected {
-            day_button = day_button.class(cosmic::style::Button::Standard);
-        }
-
-        day_button
-    }
-
-    fn week_grid<'a>(&'a self, week_start: OffsetDateTime) -> Element<'a, crate::app::Message> {
-        let mut main_column = widget::column().spacing(0);
-
-        for hour in 0..24 {
-            main_column = main_column.push(widget::divider::horizontal::default());
-
-            let hour_row = self.hour_row(hour, false, week_start);
-            main_column = main_column.push(hour_row);
-
-            main_column = main_column.push(widget::divider::horizontal::light());
-
-            let half_hour_row = self.hour_row(hour, true, week_start);
-            main_column = main_column.push(half_hour_row);
-        }
-
-        main_column.into()
-    }
-
-    fn hour_row<'a>(
-        &self,
-        hour: u8,
-        is_half_hour: bool,
-        week_start: OffsetDateTime,
-    ) -> Element<'a, crate::app::Message> {
-        let mut row = widget::row().height(60);
-
-        let time_label = if is_half_hour {
-            String::new()
-        } else {
-            format!("{:02}:00", hour)
-        };
-
-        let time_container =
-            widget::container(widget::text::body(time_label).align_x(Horizontal::Right))
-                .width(30)
-                .height(30)
-                .align_top(Length::Fill)
-                .center_x(Length::Fill)
-                .padding([spacing().space_xxxs, 0, 0, 0]);
-
-        row = row.push(time_container);
-        row = row.push(widget::divider::vertical::default());
-
-        for day in 0..7 {
-            let day_date = week_start.checked_add(time::Duration::days(day)).unwrap();
-
-            let cell = self.time_cell(hour, is_half_hour, day_date);
-            row = row.push(cell);
-            row = row.push(widget::divider::vertical::default());
-        }
-
-        row.into()
-    }
-
-    fn time_cell<'a>(
-        &self,
-        hour: u8,
-        is_half_hour: bool,
-        date: OffsetDateTime,
-    ) -> Element<'a, crate::app::Message> {
-        let minute = if is_half_hour { 30 } else { 0 };
-        let cell_time = date
-            .replace_hour(hour)
-            .and_then(|d| d.replace_minute(minute))
-            .and_then(|d| d.replace_second(0))
-            .unwrap_or(date);
-
-        let container = widget::container(widget::text(""))
-            .width(Length::Fill)
-            .height(30);
-
-        widget::button::custom(container)
-            .width(Length::Fill)
-            .height(60)
-            .class(cosmic::style::Button::Text)
-            .on_press(crate::app::Message::AddEvent(cell_time))
-            .into()
     }
 
     pub fn set_today(&mut self) {
         self.selected_date = self.current_date;
+    }
+
+    pub fn next_day(&mut self) -> Result<(), crate::Error> {
+        let new_date = self
+            .selected_date
+            .checked_add(time::Duration::days(1))
+            .ok_or_else(|| crate::Error::DateCalculation("Failed to calculate next day".into()))?;
+        self.selected_date = new_date;
+        Ok(())
+    }
+
+    pub fn previous_day(&mut self) -> Result<(), crate::Error> {
+        let new_date = self
+            .selected_date
+            .checked_sub(time::Duration::days(1))
+            .ok_or_else(|| {
+                crate::Error::DateCalculation("Failed to calculate previous day".into())
+            })?;
+        self.selected_date = new_date;
+        Ok(())
     }
 
     pub fn next_month(&mut self) -> Result<(), crate::Error> {
@@ -393,5 +204,14 @@ impl Calendar {
             years.push(year);
         }
         years
+    }
+
+    pub fn days(&self) -> Vec<u8> {
+        let mut days = vec![];
+        let days_in_month = self.selected_date.month().length(self.selected_date.year());
+        for day in 1..=days_in_month {
+            days.push(day);
+        }
+        days
     }
 }
