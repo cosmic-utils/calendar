@@ -57,7 +57,7 @@ pub enum Message {
     NavigateNextYear,
     NavigatePreviousYear,
     NavigateToday,
-    AddEvent,
+    AddEvent(OffsetDateTime),
     SelectDate(OffsetDateTime),
     SelectMonth(usize),
     SelectYear(usize),
@@ -236,7 +236,9 @@ impl cosmic::Application for AppModel {
                             .push(
                                 widget::button::icon(widget::icon::from_name("list-add-symbolic"))
                                     .tooltip(fl!("crate-event"))
-                                    .on_press(Message::AddEvent),
+                                    .on_press(Message::AddEvent(
+                                        OffsetDateTime::now_local().unwrap(),
+                                    )),
                             )
                             .align_y(Vertical::Center)
                             .spacing(spacing().space_xxs),
@@ -368,9 +370,8 @@ impl cosmic::Application for AppModel {
                     eprintln!("failed to open {url:?}: {err}");
                 }
             },
-            Message::AddEvent => {
-                // Implement the logic to add a new event here.
-                // For example, you can open a dialog to input event details.
+            Message::AddEvent(date) => {
+                tracing::info!("Adding event on {date}");
             }
             Message::SelectDate(date) => {
                 self.calendar.set_date(date);
