@@ -14,6 +14,7 @@ use cosmic::widget::{self, menu, nav_bar};
 use cosmic::{cosmic_theme, theme};
 use futures_util::SinkExt;
 use std::collections::HashMap;
+use std::ops::Index;
 use time::OffsetDateTime;
 
 mod flags;
@@ -58,6 +59,8 @@ pub enum Message {
     NavigateToday,
     AddEvent,
     SelectDate(OffsetDateTime),
+    SelectMonth(usize),
+    SelectYear(usize),
     TabSelected(widget::segmented_button::Entity),
 }
 
@@ -186,8 +189,17 @@ impl cosmic::Application for AppModel {
                                 ))
                                 .on_press(Message::NavigatePreviousMonth),
                             )
-                            .push(widget::text(
-                                self.calendar.selected_date.month().to_string(),
+                            .push(widget::dropdown(
+                                self.calendar
+                                    .months()
+                                    .iter()
+                                    .map(|m| m.to_string())
+                                    .collect::<Vec<String>>(),
+                                self.calendar
+                                    .months()
+                                    .iter()
+                                    .position(|m| *m == self.calendar.selected_date.month()),
+                                Message::SelectMonth,
                             ))
                             .push(
                                 widget::button::icon(widget::icon::from_name("go-next-symbolic"))
@@ -199,7 +211,18 @@ impl cosmic::Application for AppModel {
                                 ))
                                 .on_press(Message::NavigatePreviousYear),
                             )
-                            .push(widget::text(self.calendar.selected_date.year().to_string()))
+                            .push(widget::dropdown(
+                                self.calendar
+                                    .years()
+                                    .iter()
+                                    .map(|m| m.to_string())
+                                    .collect::<Vec<String>>(),
+                                self.calendar
+                                    .years()
+                                    .iter()
+                                    .position(|y| *y == self.calendar.selected_date.year()),
+                                Message::SelectYear,
+                            ))
                             .push(
                                 widget::button::icon(widget::icon::from_name("go-next-symbolic"))
                                     .on_press(Message::NavigateNextYear),
@@ -351,6 +374,24 @@ impl cosmic::Application for AppModel {
             }
             Message::SelectDate(date) => {
                 self.calendar.set_date(date);
+            }
+            Message::SelectMonth(idx) => {
+                let months = self.calendar.months();
+                let month = months.index(idx);
+                if let Ok(date) = self.calendar.selected_date.replace_month(*month) {
+                    self.calendar.set_date(date);
+                } else {
+                    tracing::error!("failed to select date");
+                }
+            }
+            Message::SelectYear(idx) => {
+                let years = self.calendar.years();
+                let year = years.index(idx);
+                if let Ok(date) = self.calendar.selected_date.replace_year(*year) {
+                    self.calendar.set_date(date);
+                } else {
+                    tracing::error!("failed to select date");
+                }
             }
             Message::NavigateToday => self.calendar.set_today(),
             Message::NavigateNextMonth => {

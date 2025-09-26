@@ -3,7 +3,7 @@ use cosmic::{
     theme::spacing,
     widget, Apply, Element,
 };
-use time::{OffsetDateTime, Weekday};
+use time::{Month, OffsetDateTime, Weekday};
 
 pub struct Calendar {
     pub current_date: OffsetDateTime,
@@ -202,5 +202,30 @@ impl Calendar {
 
     pub fn set_date(&mut self, date: OffsetDateTime) {
         self.selected_date = date;
+    }
+
+    pub fn months(&self) -> [Month; 12] {
+        [
+            Month::January,
+            Month::February,
+            Month::March,
+            Month::April,
+            Month::May,
+            Month::June,
+            Month::July,
+            Month::August,
+            Month::September,
+            Month::October,
+            Month::November,
+            Month::December,
+        ]
+    }
+
+    pub fn years(&self) -> Vec<i32> {
+        let mut years = vec![];
+        for year in 2000..=2099 {
+            years.push(year);
+        }
+        years
     }
 }
