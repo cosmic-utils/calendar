@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Cosmic Ext Calendar
+Comment=A calendar application for the COSMIC desktop
+Type=Application
+Icon=dev.edfloreshz.Calendar
+Exec=cosmic-ext-calendar %F
+Terminal=false
+StartupNotify=true
+Categories=COSMIC
+Keywords=COSMIC
+MimeType=
