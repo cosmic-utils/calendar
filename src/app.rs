@@ -12,6 +12,11 @@ use cosmic::{cosmic_theme, theme};
 use futures_util::SinkExt;
 use std::collections::HashMap;
 
+mod flags;
+pub use flags::*;
+mod settings;
+pub use settings::*;
+
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
 
@@ -46,7 +51,7 @@ impl cosmic::Application for AppModel {
     type Executor = cosmic::executor::Default;
 
     /// Data that your application receives to its init method.
-    type Flags = ();
+    type Flags = Flags;
 
     /// Messages which the application and its widgets will emit.
     type Message = Message;
