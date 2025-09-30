@@ -1,3 +1,4 @@
+use crate::Result;
 use cosmic::{
     iced::{alignment::Horizontal, Length},
     theme::spacing,
@@ -9,12 +10,13 @@ mod day;
 mod month;
 mod week;
 
-pub struct Calendar {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LocalCalendar {
     pub current_date: OffsetDateTime,
     pub selected_date: OffsetDateTime,
 }
 
-impl Default for Calendar {
+impl Default for LocalCalendar {
     fn default() -> Self {
         let current_date = match OffsetDateTime::now_local() {
             Ok(date) => date,
@@ -30,7 +32,7 @@ impl Default for Calendar {
     }
 }
 
-impl Calendar {
+impl LocalCalendar {
     #[allow(unused)]
     pub fn new(current_date: OffsetDateTime) -> Self {
         Self {
@@ -57,9 +59,9 @@ impl Calendar {
             .push(weekday_headers)
             .push(calendar_grid)
             .spacing(spacing().space_xs)
-            .padding(spacing().space_xxs)
             .align_x(Horizontal::Center)
             .height(Length::Fill)
+            .padding([0, 0, spacing().space_xxs, 0])
     }
 
     pub fn week_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
@@ -101,31 +103,25 @@ impl Calendar {
             .push(header_row)
             .push(
                 widget::scrollable(time_grid)
-                    .spacing(spacing().space_xxxs)
                     .height(Length::Fill)
                     .width(Length::Fill),
             )
-            .padding(spacing().space_xs)
+            .padding([0, 0, spacing().space_xxs, 0])
     }
 
     pub fn day_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
         let time_grid = day::single_day_time_grid(&self.selected_date);
 
         widget::column()
-            .push(
-                widget::scrollable(time_grid)
-                    .height(Length::Fill)
-                    .spacing(spacing().space_xxxs),
-            )
-            .spacing(spacing().space_xs)
-            .padding(spacing().space_xs)
+            .push(widget::scrollable(time_grid).height(Length::Fill))
+            .padding([0, 0, spacing().space_xxs, 0])
     }
 
     pub fn set_today(&mut self) {
         self.selected_date = self.current_date;
     }
 
-    pub fn next_day(&mut self) -> Result<(), crate::Error> {
+    pub fn next_day(&mut self) -> Result<()> {
         let new_date = self
             .selected_date
             .checked_add(time::Duration::days(1))
@@ -134,7 +130,7 @@ impl Calendar {
         Ok(())
     }
 
-    pub fn previous_day(&mut self) -> Result<(), crate::Error> {
+    pub fn previous_day(&mut self) -> Result<()> {
         let new_date = self
             .selected_date
             .checked_sub(time::Duration::days(1))
@@ -145,28 +141,28 @@ impl Calendar {
         Ok(())
     }
 
-    pub fn next_month(&mut self) -> Result<(), crate::Error> {
+    pub fn next_month(&mut self) -> Result<()> {
         let next_month = self.selected_date.month().next();
         let new_date = self.selected_date.replace_month(next_month)?;
         self.selected_date = new_date;
         Ok(())
     }
 
-    pub fn previous_month(&mut self) -> Result<(), crate::Error> {
+    pub fn previous_month(&mut self) -> Result<()> {
         let previous_month = self.selected_date.month().previous();
         let new_date = self.selected_date.replace_month(previous_month)?;
         self.selected_date = new_date;
         Ok(())
     }
 
-    pub fn next_year(&mut self) -> Result<(), crate::Error> {
+    pub fn next_year(&mut self) -> Result<()> {
         let next_year = self.selected_date.year();
         let new_date = self.selected_date.replace_year(next_year + 1)?;
         self.selected_date = new_date;
         Ok(())
     }
 
-    pub fn previous_year(&mut self) -> Result<(), crate::Error> {
+    pub fn previous_year(&mut self) -> Result<()> {
         let next_year = self.selected_date.year();
         let new_date = self.selected_date.replace_year(next_year - 1)?;
         self.selected_date = new_date;

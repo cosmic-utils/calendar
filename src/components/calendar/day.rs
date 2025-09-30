@@ -63,7 +63,7 @@ fn single_day_time_cell<'a>(
     let cell_time = date
         .replace_hour(hour)
         .and_then(|d| d.replace_minute(minute))
-        .unwrap_or(date.clone());
+        .unwrap_or(*date);
 
     widget::button::text("")
         .width(Length::Fill)

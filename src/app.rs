@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::components::Calendar;
+use crate::components::LocalCalendar;
 use crate::config::Config;
 use crate::fl;
+use crate::models::Calendar;
+use crate::services::CalendarServiceFactory;
+use crate::Result;
+use accounts::models::Account;
+use accounts::AccountsClient;
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::alignment::{Horizontal, Vertical};
@@ -13,7 +18,7 @@ use cosmic::widget::segmented_button::SingleSelect;
 use cosmic::widget::{self, menu, nav_bar};
 use cosmic::{cosmic_theme, theme};
 use futures_util::SinkExt;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::ops::Index;
 use time::OffsetDateTime;
 
@@ -41,7 +46,10 @@ pub struct AppModel {
     // Configuration data that persists between application runs.
     config: Config,
     // Calendar data that persists between application runs.
-    calendar: Calendar,
+    calendar: LocalCalendar,
+    client: Option<AccountsClient>,
+    accounts: VecDeque<Account>,
+    calendars: BTreeMap<Account, Vec<Calendar>>,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -51,6 +59,7 @@ pub enum Message {
     SubscriptionChannel,
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
+    TabSelected(widget::segmented_button::Entity),
     LaunchUrl(String),
     NavigateNextDay,
     NavigatePreviousDay,
@@ -64,7 +73,12 @@ pub enum Message {
     SelectMonth(usize),
     SelectYear(usize),
     SelectDay(usize),
-    TabSelected(widget::segmented_button::Entity),
+    LoadClient,
+    SetClient(Option<AccountsClient>),
+    LoadAccounts,
+    SetAccounts(VecDeque<Account>),
+    LoadCalendars,
+    AddCalendars((Account, Vec<Calendar>)),
 }
 
 /// Create a COSMIC application from the app model
@@ -137,7 +151,10 @@ impl cosmic::Application for AppModel {
                     }
                 })
                 .unwrap_or_default(),
-            calendar: Calendar::default(),
+            calendar: LocalCalendar::default(),
+            client: None,
+            accounts: VecDeque::new(),
+            calendars: BTreeMap::new(),
         };
 
         app.core.nav_bar_set_toggled(false);
@@ -145,7 +162,10 @@ impl cosmic::Application for AppModel {
         // Create a startup command that sets the window title.
         let command = app.update_title();
 
-        (app, command)
+        (
+            app,
+            Task::batch(vec![command, cosmic::task::message(Message::LoadClient)]),
+        )
     }
 
     /// Elements to pack at the start of the header bar.
@@ -366,6 +386,7 @@ impl cosmic::Application for AppModel {
     /// Tasks may be returned for asynchronous execution of code in the background
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
+        let mut tasks = vec![];
         match message {
             Message::TabSelected(tab) => {
                 self.tabs.activate(tab);
@@ -395,6 +416,70 @@ impl cosmic::Application for AppModel {
                     eprintln!("failed to open {url:?}: {err}");
                 }
             },
+            Message::LoadClient => tasks.push(Task::perform(
+                async { AccountsClient::new().await.ok() },
+                |client| cosmic::action::app(Message::SetClient(client)),
+            )),
+            Message::SetClient(client) => {
+                self.client = client;
+                tasks.push(cosmic::task::message(Message::LoadAccounts));
+            }
+            Message::LoadAccounts => {
+                if let Some(client) = self.client.as_ref() {
+                    let client = client.clone();
+                    tasks.push(Task::perform(
+                        async move {
+                            let accounts = client.list_accounts().await?;
+                            Ok(VecDeque::from(accounts))
+                        },
+                        |accounts: Result<VecDeque<Account>>| match accounts {
+                            Ok(accounts) => cosmic::action::app(Message::SetAccounts(accounts)),
+                            Err(err) => {
+                                tracing::error!("Failed to load accounts: {}", err);
+                                cosmic::action::none()
+                            }
+                        },
+                    ));
+                }
+            }
+            Message::SetAccounts(accounts) => {
+                self.accounts = accounts;
+                tasks.push(cosmic::task::message(Message::LoadCalendars));
+            }
+            Message::LoadCalendars => {
+                let accounts = self.accounts.clone();
+                for account in accounts {
+                    tasks.push(cosmic::Task::perform(
+                        async move {
+                            let mut service = CalendarServiceFactory::get_service(&account).await?;
+                            let calendars = service.fetch_calendars().await?;
+                            Ok((account.clone(), calendars))
+                        },
+                        |calendars: Result<(Account, Vec<Calendar>)>| match calendars {
+                            Ok((account, calendars)) => {
+                                cosmic::action::app(Message::AddCalendars((account, calendars)))
+                            }
+                            Err(err) => {
+                                tracing::error!("Failed to load calendars: {}", err);
+                                cosmic::action::none()
+                            }
+                        },
+                    ));
+                }
+            }
+            Message::AddCalendars((account, calendars)) => {
+                self.core.nav_bar_set_toggled(true);
+                self.calendars.insert(account.clone(), calendars.clone());
+                self.nav.insert().text(account.username);
+                for calendar in calendars {
+                    self.nav
+                        .insert()
+                        .indent(1)
+                        .text(calendar.name.clone())
+                        .icon(widget::icon::from_name("office-calendar-symbolic"))
+                        .data(calendar);
+                }
+            }
             Message::AddEvent(date) => {
                 tracing::info!("Adding event on {date}");
             }
@@ -460,7 +545,7 @@ impl cosmic::Application for AppModel {
                 }
             }
         }
-        Task::none()
+        Task::batch(tasks)
     }
 
     /// Called when a nav item is selected.
