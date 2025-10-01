@@ -15,8 +15,10 @@ impl GoogleCalendarService {
     pub async fn new(account: &Account, client: &AccountsClient) -> Result<Self> {
         let mut client = client.clone();
         let access_token = client.get_access_token(&account.id).await?;
+        let refresh_token = client.get_refresh_token(&account.id).await?;
         let mut token = OToken::default();
         token.access = access_token;
+        token.refresh = (!refresh_token.is_empty()).then_some(refresh_token);
         Ok(GoogleCalendarService {
             account: account.clone(),
             client: client.clone(),
@@ -25,7 +27,6 @@ impl GoogleCalendarService {
     }
 
     pub async fn refresh_access_token(&mut self) -> Result<()> {
-        self.client.ensure_credentials(&self.account.id).await?;
         let access_token = self.client.get_access_token(&self.account.id).await?;
         let mut token = OToken::default();
         token.access = access_token;

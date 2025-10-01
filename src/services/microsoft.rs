@@ -30,7 +30,6 @@ impl MicrosoftCalendarService {
     }
 
     pub async fn refresh_access_token(&mut self) -> Result<()> {
-        self.client.ensure_credentials(&self.account.id).await?;
         let token = self.client.get_access_token(&self.account.id).await?;
         self.graph = GraphClient::new(token);
         Ok(())

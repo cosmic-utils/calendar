@@ -6,18 +6,18 @@ use crate::fl;
 use crate::models::Calendar;
 use crate::services::CalendarServiceFactory;
 use crate::Result;
-use accounts::models::Account;
+use accounts::models::{Account, Service};
 use accounts::AccountsClient;
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::alignment::{Horizontal, Vertical};
-use cosmic::iced::{Alignment, Length, Subscription};
+use cosmic::iced::{stream, Alignment, Length, Subscription};
 use cosmic::prelude::*;
 use cosmic::theme::spacing;
 use cosmic::widget::segmented_button::SingleSelect;
 use cosmic::widget::{self, menu, nav_bar};
 use cosmic::{cosmic_theme, theme};
-use futures_util::SinkExt;
+use futures_util::{SinkExt, StreamExt};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::ops::Index;
 use time::OffsetDateTime;
@@ -76,6 +76,7 @@ pub enum Message {
     LoadClient,
     SetClient(Option<AccountsClient>),
     LoadAccounts,
+    ReloadAccounts,
     SetAccounts(VecDeque<Account>),
     LoadCalendars,
     AddCalendars((Account, Vec<Calendar>)),
@@ -192,103 +193,98 @@ impl cosmic::Application for AppModel {
     }
 
     fn footer<'a>(&'a self) -> Option<Element<'a, Self::Message>> {
-        Some(
-            widget::container(
-                widget::row()
-                    .push(
-                        widget::button::icon(widget::icon::from_name("calendar-go-today-symbolic"))
-                            .tooltip(fl!("today"))
-                            .class(cosmic::style::Button::NavToggle)
-                            .on_press_maybe(
-                                (!self.calendar.today()).then_some(Message::NavigateToday),
-                            ),
-                    )
-                    .push(widget::horizontal_space())
-                    .push(
-                        widget::row()
-                            .push(
-                                widget::button::icon(widget::icon::from_name(
-                                    "go-previous-symbolic",
-                                ))
-                                .on_press(Message::NavigatePreviousDay),
-                            )
-                            .push(widget::dropdown(
-                                self.calendar
-                                    .days()
-                                    .iter()
-                                    .map(|m| m.to_string())
-                                    .collect::<Vec<String>>(),
-                                self.calendar
-                                    .days()
-                                    .iter()
-                                    .position(|m| *m == self.calendar.selected_date.day()),
-                                Message::SelectDay,
-                            ))
-                            .push(
-                                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
-                                    .on_press(Message::NavigateNextDay),
-                            )
-                            .push(
-                                widget::button::icon(widget::icon::from_name(
-                                    "go-previous-symbolic",
-                                ))
-                                .on_press(Message::NavigatePreviousMonth),
-                            )
-                            .push(widget::dropdown(
-                                self.calendar
-                                    .months()
-                                    .iter()
-                                    .map(|m| m.to_string())
-                                    .collect::<Vec<String>>(),
-                                self.calendar
-                                    .months()
-                                    .iter()
-                                    .position(|m| *m == self.calendar.selected_date.month()),
-                                Message::SelectMonth,
-                            ))
-                            .push(
-                                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
-                                    .on_press(Message::NavigateNextMonth),
-                            )
-                            .push(
-                                widget::button::icon(widget::icon::from_name(
-                                    "go-previous-symbolic",
-                                ))
-                                .on_press(Message::NavigatePreviousYear),
-                            )
-                            .push(widget::dropdown(
-                                self.calendar
-                                    .years()
-                                    .iter()
-                                    .map(|m| m.to_string())
-                                    .collect::<Vec<String>>(),
-                                self.calendar
-                                    .years()
-                                    .iter()
-                                    .position(|y| *y == self.calendar.selected_date.year()),
-                                Message::SelectYear,
-                            ))
-                            .push(
-                                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
-                                    .on_press(Message::NavigateNextYear),
-                            )
-                            .align_y(Vertical::Center)
-                            .spacing(spacing().space_xxs),
-                    )
-                    .push(widget::horizontal_space())
-                    .push(
-                        widget::row()
-                            .push(
-                                widget::button::icon(widget::icon::from_name("list-add-symbolic"))
-                                    .tooltip(fl!("crate-event"))
-                                    .on_press(Message::AddEvent(
-                                        OffsetDateTime::now_local().unwrap(),
-                                    )),
-                            )
-                            .align_y(Vertical::Center)
-                            .spacing(spacing().space_xxs),
-                    ),
+        let today = widget::button::icon(widget::icon::from_name("calendar-go-today-symbolic"))
+            .tooltip(fl!("today"))
+            .class(cosmic::style::Button::NavToggle)
+            .on_press_maybe((!self.calendar.today()).then_some(Message::NavigateToday));
+
+        let days = widget::row()
+            .push(
+                widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
+                    .on_press(Message::NavigatePreviousDay),
             )
+            .push(widget::dropdown(
+                self.calendar
+                    .days()
+                    .iter()
+                    .map(|m| m.to_string())
+                    .collect::<Vec<String>>(),
+                self.calendar
+                    .days()
+                    .iter()
+                    .position(|m| *m == self.calendar.selected_date.day()),
+                Message::SelectDay,
+            ))
+            .push(
+                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
+                    .on_press(Message::NavigateNextDay),
+            );
+
+        let months = widget::row()
+            .push(
+                widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
+                    .on_press(Message::NavigatePreviousMonth),
+            )
+            .push(widget::dropdown(
+                self.calendar
+                    .months()
+                    .iter()
+                    .map(|m| m.to_string())
+                    .collect::<Vec<String>>(),
+                self.calendar
+                    .months()
+                    .iter()
+                    .position(|m| *m == self.calendar.selected_date.month()),
+                Message::SelectMonth,
+            ))
+            .push(
+                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
+                    .on_press(Message::NavigateNextMonth),
+            );
+
+        let years = widget::row()
+            .push(
+                widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
+                    .on_press(Message::NavigatePreviousYear),
+            )
+            .push(widget::dropdown(
+                self.calendar
+                    .years()
+                    .iter()
+                    .map(|m| m.to_string())
+                    .collect::<Vec<String>>(),
+                self.calendar
+                    .years()
+                    .iter()
+                    .position(|y| *y == self.calendar.selected_date.year()),
+                Message::SelectYear,
+            ))
+            .push(
+                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
+                    .on_press(Message::NavigateNextYear),
+            )
+            .align_y(Vertical::Center)
+            .spacing(spacing().space_xxs);
+
+        let create_event = widget::row()
+            .push(
+                widget::button::icon(widget::icon::from_name("list-add-symbolic"))
+                    .tooltip(fl!("crate-event"))
+                    .on_press(Message::AddEvent(OffsetDateTime::now_local().unwrap())),
+            )
+            .align_y(Vertical::Center)
+            .spacing(spacing().space_xxs);
+
+        Some(
+            widget::container(widget::flex_row(vec![
+                today.into(),
+                widget::horizontal_space().into(),
+                days.into(),
+                months.into(),
+                years.into(),
+                widget::horizontal_space().into(),
+                create_event.into(),
+            ]))
             .align_x(Horizontal::Center)
             .class(cosmic::theme::Container::Card)
             .padding(spacing().space_xxxs)
@@ -358,6 +354,12 @@ impl cosmic::Application for AppModel {
     fn subscription(&self) -> Subscription<Self::Message> {
         struct MySubscription;
 
+        let Some(client) = self.client.clone() else {
+            return Subscription::none();
+        };
+        let account_changed_client = client.clone();
+        let account_removed_client = client.clone();
+
         Subscription::batch(vec![
             // Create a subscription which emits updates through a channel.
             Subscription::run_with_id(
@@ -378,6 +380,46 @@ impl cosmic::Application for AppModel {
 
                     Message::UpdateConfig(update.config)
                 }),
+            Subscription::run_with_id(
+                "account_added",
+                stream::channel(1, move |mut output| async move {
+                    if let Ok(mut account_added_stream) = client.receive_account_added().await {
+                        while let Some(_) = account_added_stream.next().await {
+                            if let Err(err) = output.send(Message::ReloadAccounts).await {
+                                tracing::warn!("failed to send message from subscription: {}", err);
+                            }
+                        }
+                    }
+                }),
+            ),
+            Subscription::run_with_id(
+                "account_changed",
+                stream::channel(1, move |mut output| async move {
+                    if let Ok(mut account_changed_stream) =
+                        account_changed_client.receive_account_changed().await
+                    {
+                        while let Some(_) = account_changed_stream.next().await {
+                            if let Err(err) = output.send(Message::ReloadAccounts).await {
+                                tracing::warn!("failed to send message from subscription: {}", err);
+                            }
+                        }
+                    }
+                }),
+            ),
+            Subscription::run_with_id(
+                "account_removed",
+                stream::channel(1, move |mut output| async move {
+                    if let Ok(mut account_removed_stream) =
+                        account_removed_client.receive_account_removed().await
+                    {
+                        while let Some(_) = account_removed_stream.next().await {
+                            if let Err(err) = output.send(Message::ReloadAccounts).await {
+                                tracing::warn!("failed to send message from subscription: {}", err);
+                            }
+                        }
+                    }
+                }),
+            ),
         ])
     }
 
@@ -424,12 +466,16 @@ impl cosmic::Application for AppModel {
                 self.client = client;
                 tasks.push(cosmic::task::message(Message::LoadAccounts));
             }
+            Message::ReloadAccounts => {
+                self.nav.clear();
+                tasks.push(cosmic::task::message(Message::LoadAccounts));
+            }
             Message::LoadAccounts => {
                 if let Some(client) = self.client.as_ref() {
                     let client = client.clone();
                     tasks.push(Task::perform(
                         async move {
-                            let accounts = client.list_accounts().await?;
+                            let accounts = client.list_enabled_accounts(Service::Calendar).await?;
                             Ok(VecDeque::from(accounts))
                         },
                         |accounts: Result<VecDeque<Account>>| match accounts {
