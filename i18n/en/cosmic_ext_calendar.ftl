@@ -9,4 +9,4 @@ month = Month
 week = Week
 day = Day
 
-crate-event = Crate Event
+crate-event = Create Event
