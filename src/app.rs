@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::fl;
 use crate::models::{
     Calendar, CalendarId, CalendarKey, Event, EventId, EventKind, EventTime, LocalCalendarMeta,
-    Source, TaskDetails,
+    Reminder, Source, TaskDetails,
 };
 use crate::services::{ics, CalendarServiceFactory};
 use crate::storage::LocalStorage;
@@ -80,6 +80,9 @@ pub struct AppModel {
     // Current text in the header search bar; non-empty replaces the main
     // view with search results.
     search_query: String,
+    // Reminders already notified this session, so the periodic check
+    // doesn't re-fire the same notification every tick.
+    fired_reminders: std::collections::HashSet<(EventId, OffsetDateTime)>,
 }
 
 /// State of an in-progress edit to a calendar's name/color, shown inline in
@@ -319,12 +322,18 @@ pub struct EventEditorState {
     pub start: OffsetDateTime,
     pub end: OffsetDateTime,
     pub recurrence: RecurrenceRule,
+    /// Minutes-before-start lead times for each reminder attached to this
+    /// event.
+    pub reminders: Vec<i64>,
     /// The specific occurrence that was clicked to open this editor (equal
     /// to `start` for non-recurring events and new events), used to record
     /// which single occurrence to exclude via EXDATE on "delete this
     /// occurrence".
     pub occurrence_start: OffsetDateTime,
 }
+
+/// The lead-time presets offered when adding a reminder in the event editor.
+pub const REMINDER_PRESETS_MINUTES: [i64; 6] = [0, 5, 10, 15, 30, 60];
 
 impl EventEditorState {
     fn new(calendar: CalendarKey, start: OffsetDateTime) -> Self {
@@ -339,6 +348,7 @@ impl EventEditorState {
             start,
             end: start + time::Duration::hours(1),
             recurrence: RecurrenceRule::NONE,
+            reminders: Vec::new(),
             occurrence_start: start,
         }
     }
@@ -364,6 +374,11 @@ impl EventEditorState {
             start,
             end,
             recurrence: RecurrenceRule::from_rrule_string(event.rrule.as_deref()),
+            reminders: event
+                .reminders
+                .iter()
+                .map(|reminder| reminder.minutes_before)
+                .collect(),
             occurrence_start,
         }
     }
@@ -422,7 +437,13 @@ impl EventEditorState {
             exdates: existing.map_or(Vec::new(), |event| event.exdates.clone()),
             recurrence_id: None,
             attendees: existing.map_or(Vec::new(), |event| event.attendees.clone()),
-            reminders: existing.map_or(Vec::new(), |event| event.reminders.clone()),
+            reminders: self
+                .reminders
+                .iter()
+                .map(|minutes_before| Reminder {
+                    minutes_before: *minutes_before,
+                })
+                .collect(),
             source: Source::Local,
             external: None,
             created_at: existing.map_or(now, |event| event.created_at),
@@ -508,6 +529,9 @@ pub enum Message {
     CalendarDeleted(std::result::Result<CalendarId, String>),
     SearchChanged(String),
     SelectSearchResult(EventId, OffsetDateTime),
+    EventEditorReminderToggled(i64, bool),
+    CheckReminders,
+    RemindersFired(Vec<(EventId, OffsetDateTime)>),
 }
 
 /// Create a COSMIC application from the app model
@@ -592,6 +616,7 @@ impl cosmic::Application for AppModel {
             calendar_manager: CalendarManagerState::default(),
             calendar_nav_ids: Vec::new(),
             search_query: String::new(),
+            fired_reminders: std::collections::HashSet::new(),
         };
 
         // Seed a default calendar on first run so the app is usable offline
@@ -865,13 +890,17 @@ impl cosmic::Application for AppModel {
     /// emit messages to the application through a channel. They are started at the
     /// beginning of the application, and persist through its lifetime.
     fn subscription(&self) -> Subscription<Self::Message> {
+        let reminders_tick =
+            cosmic::iced::time::every(std::time::Duration::from_secs(30)).map(|_| Message::CheckReminders);
+
         let Some(client) = self.client.clone() else {
-            return Subscription::none();
+            return Subscription::batch(vec![reminders_tick]);
         };
         let account_changed_client = client.clone();
         let account_removed_client = client.clone();
 
         Subscription::batch(vec![
+            reminders_tick,
             // Create a subscription which emits updates through a channel.
             Subscription::run_with((), |()| {
                 cosmic::iced::stream::channel(4, move |mut channel: Sender<Message>| async move {
@@ -1534,6 +1563,34 @@ impl cosmic::Application for AppModel {
                     Some(id),
                     start,
                 )));
+            }
+            Message::EventEditorReminderToggled(minutes, on) => {
+                if let Some(state) = self.editing_event.as_mut() {
+                    if on {
+                        if !state.reminders.contains(&minutes) {
+                            state.reminders.push(minutes);
+                        }
+                    } else {
+                        state.reminders.retain(|m| *m != minutes);
+                    }
+                }
+            }
+            Message::CheckReminders => {
+                let storage = self.storage.clone();
+                let already_fired = self.fired_reminders.clone();
+                tasks.push(Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || {
+                            crate::notifications::check_reminders(&storage, &already_fired)
+                        })
+                        .await
+                        .unwrap_or_default()
+                    },
+                    |fired| cosmic::action::app(Message::RemindersFired(fired)),
+                ));
+            }
+            Message::RemindersFired(fired) => {
+                self.fired_reminders.extend(fired);
             }
             Message::SelectDate(date) => {
                 self.calendar.set_date(date);

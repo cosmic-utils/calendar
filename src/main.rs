@@ -6,6 +6,7 @@ mod config;
 mod error;
 mod i18n;
 mod models;
+mod notifications;
 mod services;
 mod storage;
 

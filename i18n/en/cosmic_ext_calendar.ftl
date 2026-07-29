@@ -47,4 +47,6 @@ color = Color
 rename = Rename
 search = Search events…
 no-results = No matching events
+reminders = Reminders
+reminder-at-start = At start
 

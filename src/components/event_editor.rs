@@ -2,12 +2,39 @@ use cosmic::{iced::Length, theme::spacing, widget, Element};
 
 use crate::app::{
     event_editor_months, EventEditorState, Message, RecurrenceEnd, RecurrenceFreq,
-    EVENT_EDITOR_MINUTES, EVENT_EDITOR_YEARS,
+    EVENT_EDITOR_MINUTES, EVENT_EDITOR_YEARS, REMINDER_PRESETS_MINUTES,
 };
 use crate::fl;
 use crate::models::{CalendarKey, LocalCalendarMeta};
 
 const WEEKDAY_LABELS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+fn reminder_label(minutes: i64) -> String {
+    if minutes == 0 {
+        fl!("reminder-at-start")
+    } else if minutes % 60 == 0 {
+        format!("{}h", minutes / 60)
+    } else {
+        format!("{minutes}m")
+    }
+}
+
+fn reminders_row<'a>(state: &'a EventEditorState) -> Element<'a, Message> {
+    let mut row = widget::row(Vec::new()).spacing(spacing().space_xxs);
+    for minutes in REMINDER_PRESETS_MINUTES {
+        let on = state.reminders.contains(&minutes);
+        row = row.push(
+            widget::button::custom(widget::text::body(reminder_label(minutes)))
+                .class(if on {
+                    cosmic::style::Button::Suggested
+                } else {
+                    cosmic::style::Button::Standard
+                })
+                .on_press(Message::EventEditorReminderToggled(minutes, !on)),
+        );
+    }
+    row.into()
+}
 
 fn hour_labels() -> Vec<String> {
     (0..24).map(|h| format!("{h:02}:00")).collect()
@@ -272,6 +299,10 @@ pub fn view<'a>(
     }
 
     content = content.push(recurrence_form(state));
+
+    content = content
+        .push(widget::text::body(fl!("reminders")))
+        .push(reminders_row(state));
 
     let mut actions = widget::row(Vec::new())
         .spacing(spacing().space_xs)
