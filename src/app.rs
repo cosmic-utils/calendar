@@ -11,6 +11,7 @@ use accounts::AccountsClient;
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::alignment::{Horizontal, Vertical};
+use cosmic::iced::futures::channel::mpsc::Sender;
 use cosmic::iced::{stream, Alignment, Length, Subscription};
 use cosmic::prelude::*;
 use cosmic::theme::spacing;
@@ -29,6 +30,16 @@ pub use settings::*;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
+
+/// Wraps subscription data alongside a stable identifier used for hashing,
+/// since the wrapped client itself does not implement [`std::hash::Hash`].
+struct AccountSubscription<T>(&'static str, T);
+
+impl<T> std::hash::Hash for AccountSubscription<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
 
 /// The application model stores app-specific state used to describe its interface and
 /// drive its logic.
@@ -188,7 +199,6 @@ impl cosmic::Application for AppModel {
             self.calendar.selected_date.month(),
             self.calendar.selected_date.year()
         ))
-        .width(Length::Fill)
         .into()]
     }
 
@@ -198,12 +208,11 @@ impl cosmic::Application for AppModel {
             .class(cosmic::style::Button::NavToggle)
             .on_press_maybe((!self.calendar.today()).then_some(Message::NavigateToday));
 
-        let days = widget::row()
-            .push(
-                widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
-                    .on_press(Message::NavigatePreviousDay),
-            )
-            .push(widget::dropdown(
+        let days = widget::row(vec![
+            widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
+                .on_press(Message::NavigatePreviousDay)
+                .into(),
+            widget::dropdown(
                 self.calendar
                     .days()
                     .iter()
@@ -214,18 +223,18 @@ impl cosmic::Application for AppModel {
                     .iter()
                     .position(|m| *m == self.calendar.selected_date.day()),
                 Message::SelectDay,
-            ))
-            .push(
-                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
-                    .on_press(Message::NavigateNextDay),
-            );
-
-        let months = widget::row()
-            .push(
-                widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
-                    .on_press(Message::NavigatePreviousMonth),
             )
-            .push(widget::dropdown(
+            .into(),
+            widget::button::icon(widget::icon::from_name("go-next-symbolic"))
+                .on_press(Message::NavigateNextDay)
+                .into(),
+        ]);
+
+        let months = widget::row(vec![
+            widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
+                .on_press(Message::NavigatePreviousMonth)
+                .into(),
+            widget::dropdown(
                 self.calendar
                     .months()
                     .iter()
@@ -236,18 +245,18 @@ impl cosmic::Application for AppModel {
                     .iter()
                     .position(|m| *m == self.calendar.selected_date.month()),
                 Message::SelectMonth,
-            ))
-            .push(
-                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
-                    .on_press(Message::NavigateNextMonth),
-            );
-
-        let years = widget::row()
-            .push(
-                widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
-                    .on_press(Message::NavigatePreviousYear),
             )
-            .push(widget::dropdown(
+            .into(),
+            widget::button::icon(widget::icon::from_name("go-next-symbolic"))
+                .on_press(Message::NavigateNextMonth)
+                .into(),
+        ]);
+
+        let years = widget::row(vec![
+            widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
+                .on_press(Message::NavigatePreviousYear)
+                .into(),
+            widget::dropdown(
                 self.calendar
                     .years()
                     .iter()
@@ -258,31 +267,32 @@ impl cosmic::Application for AppModel {
                     .iter()
                     .position(|y| *y == self.calendar.selected_date.year()),
                 Message::SelectYear,
-            ))
-            .push(
-                widget::button::icon(widget::icon::from_name("go-next-symbolic"))
-                    .on_press(Message::NavigateNextYear),
             )
-            .align_y(Vertical::Center)
-            .spacing(spacing().space_xxs);
+            .into(),
+            widget::button::icon(widget::icon::from_name("go-next-symbolic"))
+                .on_press(Message::NavigateNextYear)
+                .into(),
+        ])
+        .align_y(Vertical::Center)
+        .spacing(spacing().space_xxs);
 
-        let create_event = widget::row()
-            .push(
-                widget::button::icon(widget::icon::from_name("list-add-symbolic"))
-                    .tooltip(fl!("crate-event"))
-                    .on_press(Message::AddEvent(OffsetDateTime::now_local().unwrap())),
-            )
-            .align_y(Vertical::Center)
-            .spacing(spacing().space_xxs);
+        let create_event = widget::row(vec![widget::button::icon(widget::icon::from_name(
+            "list-add-symbolic",
+        ))
+        .tooltip(fl!("crate-event"))
+        .on_press(Message::AddEvent(OffsetDateTime::now_local().unwrap()))
+        .into()])
+        .align_y(Vertical::Center)
+        .spacing(spacing().space_xxs);
 
         Some(
             widget::container(widget::flex_row(vec![
                 today.into(),
-                widget::horizontal_space().into(),
+                widget::space::horizontal().into(),
                 days.into(),
                 months.into(),
                 years.into(),
-                widget::horizontal_space().into(),
+                widget::space::horizontal().into(),
                 create_event.into(),
             ]))
             .align_x(Horizontal::Center)
@@ -322,7 +332,8 @@ impl cosmic::Application for AppModel {
             .padding(2)
             .button_spacing(spacing().space_xxs)
             .button_alignment(cosmic::iced::Alignment::Center)
-            .on_activate(Message::TabSelected);
+            .on_activate(Message::TabSelected)
+            .into();
 
         let active_tab = match self.tabs.active_data::<Tab>() {
             Some(active_tab) => match active_tab {
@@ -339,9 +350,7 @@ impl cosmic::Application for AppModel {
                 .into(),
         };
 
-        widget::column()
-            .push(tabs)
-            .push(active_tab)
+        widget::column(vec![tabs, active_tab])
             .spacing(spacing().space_xxs)
             .into()
     }
@@ -352,8 +361,6 @@ impl cosmic::Application for AppModel {
     /// emit messages to the application through a channel. They are started at the
     /// beginning of the application, and persist through its lifetime.
     fn subscription(&self) -> Subscription<Self::Message> {
-        struct MySubscription;
-
         let Some(client) = self.client.clone() else {
             return Subscription::none();
         };
@@ -362,14 +369,13 @@ impl cosmic::Application for AppModel {
 
         Subscription::batch(vec![
             // Create a subscription which emits updates through a channel.
-            Subscription::run_with_id(
-                std::any::TypeId::of::<MySubscription>(),
-                cosmic::iced::stream::channel(4, move |mut channel| async move {
+            Subscription::run_with((), |()| {
+                cosmic::iced::stream::channel(4, move |mut channel: Sender<Message>| async move {
                     _ = channel.send(Message::SubscriptionChannel).await;
 
                     futures_util::future::pending().await
-                }),
-            ),
+                })
+            }),
             // Watch for application configuration changes.
             self.core()
                 .watch_config::<Config>(Self::APP_ID)
@@ -380,45 +386,63 @@ impl cosmic::Application for AppModel {
 
                     Message::UpdateConfig(update.config)
                 }),
-            Subscription::run_with_id(
-                "account_added",
-                stream::channel(1, move |mut output| async move {
-                    if let Ok(mut account_added_stream) = client.receive_account_added().await {
-                        while let Some(_) = account_added_stream.next().await {
-                            if let Err(err) = output.send(Message::ReloadAccounts).await {
-                                tracing::warn!("failed to send message from subscription: {}", err);
+            Subscription::run_with(
+                AccountSubscription("account_added", client),
+                |AccountSubscription(_, client)| {
+                    let client = client.clone();
+                    stream::channel(1, move |mut output: Sender<Message>| async move {
+                        if let Ok(mut account_added_stream) = client.receive_account_added().await {
+                            while let Some(_) = account_added_stream.next().await {
+                                if let Err(err) = output.send(Message::ReloadAccounts).await {
+                                    tracing::warn!(
+                                        "failed to send message from subscription: {}",
+                                        err
+                                    );
+                                }
                             }
                         }
-                    }
-                }),
+                    })
+                },
             ),
-            Subscription::run_with_id(
-                "account_changed",
-                stream::channel(1, move |mut output| async move {
-                    if let Ok(mut account_changed_stream) =
-                        account_changed_client.receive_account_changed().await
-                    {
-                        while let Some(_) = account_changed_stream.next().await {
-                            if let Err(err) = output.send(Message::ReloadAccounts).await {
-                                tracing::warn!("failed to send message from subscription: {}", err);
+            Subscription::run_with(
+                AccountSubscription("account_changed", account_changed_client),
+                |AccountSubscription(_, client)| {
+                    let client = client.clone();
+                    stream::channel(1, move |mut output: Sender<Message>| async move {
+                        if let Ok(mut account_changed_stream) =
+                            client.receive_account_changed().await
+                        {
+                            while let Some(_) = account_changed_stream.next().await {
+                                if let Err(err) = output.send(Message::ReloadAccounts).await {
+                                    tracing::warn!(
+                                        "failed to send message from subscription: {}",
+                                        err
+                                    );
+                                }
                             }
                         }
-                    }
-                }),
+                    })
+                },
             ),
-            Subscription::run_with_id(
-                "account_removed",
-                stream::channel(1, move |mut output| async move {
-                    if let Ok(mut account_removed_stream) =
-                        account_removed_client.receive_account_removed().await
-                    {
-                        while let Some(_) = account_removed_stream.next().await {
-                            if let Err(err) = output.send(Message::ReloadAccounts).await {
-                                tracing::warn!("failed to send message from subscription: {}", err);
+            Subscription::run_with(
+                AccountSubscription("account_removed", account_removed_client),
+                |AccountSubscription(_, client)| {
+                    let client = client.clone();
+                    stream::channel(1, move |mut output: Sender<Message>| async move {
+                        if let Ok(mut account_removed_stream) =
+                            client.receive_account_removed().await
+                        {
+                            while let Some(_) = account_removed_stream.next().await {
+                                if let Err(err) = output.send(Message::ReloadAccounts).await {
+                                    tracing::warn!(
+                                        "failed to send message from subscription: {}",
+                                        err
+                                    );
+                                }
                             }
                         }
-                    }
-                }),
+                    })
+                },
             ),
         ])
     }
@@ -620,7 +644,7 @@ impl AppModel {
             .on_press(Message::OpenRepositoryUrl)
             .padding(0);
 
-        widget::column()
+        widget::column(Vec::new())
             .push(icon)
             .push(title)
             .push(link)

@@ -8,7 +8,7 @@ use time::OffsetDateTime;
 pub fn single_day_time_grid<'a>(
     selected_date: &OffsetDateTime,
 ) -> impl Into<Element<'a, crate::app::Message>> {
-    let mut main_column = widget::column().spacing(0);
+    let mut main_column = widget::column(Vec::new()).spacing(0);
 
     for hour in 0..24 {
         main_column = main_column.push(widget::divider::horizontal::default());
@@ -30,7 +30,7 @@ fn single_day_hour_row<'a>(
     is_half_hour: bool,
     selected_date: &OffsetDateTime,
 ) -> impl Into<Element<'a, crate::app::Message>> {
-    let mut row = widget::row();
+    let mut row = widget::row(Vec::new());
 
     let time_label = if is_half_hour {
         format!("{:02}:30", hour)

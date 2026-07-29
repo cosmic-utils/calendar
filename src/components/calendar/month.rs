@@ -35,10 +35,10 @@ pub fn month_grid<'a>(
         .checked_sub(time::Duration::days(days_from_prev_month as i64))
         .unwrap();
 
-    let mut calendar_column = widget::column().spacing(spacing().space_xxs);
+    let mut calendar_column = widget::column(Vec::new()).spacing(spacing().space_xxs);
 
     for week in 0..6 {
-        let mut week_row = widget::row().spacing(spacing().space_xxs);
+        let mut week_row = widget::row(Vec::new()).spacing(spacing().space_xxs);
 
         for day in 0..7 {
             let current_day_offset = week * 7 + day;

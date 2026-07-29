@@ -55,7 +55,7 @@ impl LocalCalendar {
 
         let calendar_grid = month::month_grid(&self.selected_date, &self.current_date);
 
-        widget::column()
+        widget::column(Vec::new())
             .push(weekday_headers)
             .push(calendar_grid)
             .spacing(spacing().space_xs)
@@ -80,7 +80,7 @@ impl LocalCalendar {
             .checked_sub(time::Duration::days(days_since_sunday as i64))
             .unwrap();
 
-        let mut header_row = widget::row().padding([0, spacing().space_xs, 0, 0]);
+        let mut header_row = widget::row(Vec::new()).padding([0, spacing().space_xs, 0, 0]);
 
         let day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         for i in -1..7 {
@@ -99,7 +99,7 @@ impl LocalCalendar {
 
         let time_grid = week::week_grid(&week_start);
 
-        widget::column()
+        widget::column(Vec::new())
             .push(header_row)
             .push(
                 widget::scrollable(time_grid)
@@ -112,7 +112,7 @@ impl LocalCalendar {
     pub fn day_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
         let time_grid = day::single_day_time_grid(&self.selected_date);
 
-        widget::column()
+        widget::column(Vec::new())
             .push(widget::scrollable(time_grid).height(Length::Fill))
             .padding([0, 0, spacing().space_xxs, 0])
     }

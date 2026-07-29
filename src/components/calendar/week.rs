@@ -6,7 +6,7 @@ use cosmic::{
 use time::OffsetDateTime;
 
 pub fn week_grid<'a>(week_start: &OffsetDateTime) -> impl Into<Element<'a, crate::app::Message>> {
-    let mut main_column = widget::column().spacing(0);
+    let mut main_column = widget::column(Vec::new()).spacing(0);
 
     for hour in 0..24 {
         main_column = main_column.push(widget::divider::horizontal::default());
@@ -28,7 +28,7 @@ fn hour_row<'a>(
     is_half_hour: bool,
     week_start: &OffsetDateTime,
 ) -> impl Into<Element<'a, crate::app::Message>> {
-    let mut row = widget::row().height(60);
+    let mut row = widget::row(Vec::new()).height(60);
 
     let time_label = if is_half_hour {
         String::new()
@@ -87,7 +87,7 @@ pub fn day_header<'a>(
     is_today: bool,
     date: OffsetDateTime,
 ) -> impl Into<Element<'a, crate::app::Message>> {
-    let header = widget::column()
+    let header = widget::column(Vec::new())
         .push(
             widget::text::body(day_name)
                 .font(if is_today {
@@ -108,7 +108,7 @@ pub fn day_header<'a>(
 }
 
 pub fn empty_day_header<'a>() -> Element<'a, crate::app::Message> {
-    let header = widget::column()
+    let header = widget::column(Vec::new())
         .push(
             widget::text::body("")
                 .width(Length::Fill)
