@@ -19,6 +19,10 @@ pub enum Error {
     GraphError(#[from] graph_rs_sdk::GraphFailure),
     #[error("Google Calendar error: {0}")]
     GCal(#[from] gcal_rs::ClientError),
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Storage error: {0}")]
+    Storage(String),
     #[error("Unknown error: {0}")]
     Unknown(String),
 }

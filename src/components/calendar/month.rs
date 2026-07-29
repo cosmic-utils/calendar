@@ -3,7 +3,12 @@ use cosmic::{
     theme::spacing,
     widget, Apply, Element,
 };
-use time::{OffsetDateTime, Weekday};
+use std::collections::BTreeMap;
+use time::{Date, OffsetDateTime, Weekday};
+
+use crate::components::calendar::EventChip;
+
+const MAX_VISIBLE_EVENTS_PER_DAY: usize = 3;
 
 pub fn weekday_header<'a>(day: &'static str) -> Element<'a, crate::app::Message> {
     widget::text::body(day)
@@ -17,6 +22,7 @@ pub fn weekday_header<'a>(day: &'static str) -> Element<'a, crate::app::Message>
 pub fn month_grid<'a>(
     selected_date: &OffsetDateTime,
     current_date: &OffsetDateTime,
+    chips_by_day: &BTreeMap<Date, Vec<EventChip>>,
 ) -> Element<'a, crate::app::Message> {
     let first_of_month = selected_date.replace_day(1).unwrap();
 
@@ -50,14 +56,20 @@ pub fn month_grid<'a>(
             let is_today = display_date.date() == current_date.date();
             let is_selected = display_date.date() == selected_date.date();
 
-            let day_button = day_button(
+            let chips = chips_by_day
+                .get(&display_date.date())
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+
+            let day_cell = day_cell(
                 display_date.day(),
                 is_current_month,
                 is_today,
                 is_selected,
                 display_date,
+                chips,
             );
-            week_row = week_row.push(day_button);
+            week_row = week_row.push(day_cell);
         }
 
         calendar_column = calendar_column.push(week_row);
@@ -66,12 +78,13 @@ pub fn month_grid<'a>(
     calendar_column.into()
 }
 
-fn day_button<'a>(
+fn day_cell<'a>(
     day: u8,
     is_current_month: bool,
     is_today: bool,
     is_selected: bool,
     date: OffsetDateTime,
+    chips: &[EventChip],
 ) -> impl Into<Element<'a, crate::app::Message>> {
     let mut day_text = widget::text::body(day.to_string());
 
@@ -81,7 +94,6 @@ fn day_button<'a>(
 
     let mut day_button = widget::button::custom(day_text)
         .width(Length::Fill)
-        .height(Length::Fill)
         .class(cosmic::style::Button::MenuFolder)
         .on_press(crate::app::Message::SelectDate(
             date.replace_day(day).unwrap(),
@@ -93,5 +105,28 @@ fn day_button<'a>(
         day_button = day_button.class(cosmic::style::Button::Standard);
     }
 
-    day_button
+    let mut cell = widget::column(Vec::new()).push(day_button).width(Length::Fill);
+
+    for chip in chips.iter().take(MAX_VISIBLE_EVENTS_PER_DAY) {
+        let event_id = chip.id;
+        let start = chip.start;
+        cell = cell.push(
+            widget::button::text(chip.summary.clone())
+                .width(Length::Fill)
+                .class(cosmic::style::Button::Text)
+                .on_press(crate::app::Message::OpenEventEditor(
+                    Some(event_id),
+                    start,
+                )),
+        );
+    }
+
+    if chips.len() > MAX_VISIBLE_EVENTS_PER_DAY {
+        cell = cell.push(widget::text::caption(format!(
+            "+{} more",
+            chips.len() - MAX_VISIBLE_EVENTS_PER_DAY
+        )));
+    }
+
+    cell.height(Length::Fill)
 }

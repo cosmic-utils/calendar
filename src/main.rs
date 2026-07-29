@@ -7,6 +7,7 @@ mod error;
 mod i18n;
 mod models;
 mod services;
+mod storage;
 
 pub use error::{Error, Result};
 

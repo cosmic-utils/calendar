@@ -1,14 +1,57 @@
+use crate::models::{CalendarKey, Event, EventId};
 use crate::Result;
 use cosmic::{
     iced::{alignment::Horizontal, Length},
     theme::spacing,
     widget, Element,
 };
+use std::collections::BTreeMap;
+use std::ops::Range;
 use time::{Month, OffsetDateTime, Weekday};
 
 mod day;
 mod month;
 mod week;
+
+/// A single occurrence of an [`Event`] to render on a grid: owns its own
+/// data so recurring events can appear more than once (once per occurrence)
+/// without juggling per-occurrence borrows against the source `Event`.
+#[derive(Debug, Clone)]
+pub(crate) struct EventChip {
+    pub id: EventId,
+    pub calendar: CalendarKey,
+    pub summary: String,
+    /// The start of this specific occurrence (may differ from the parent
+    /// event's own stored start for recurring events).
+    pub start: OffsetDateTime,
+}
+
+/// Expands `events` into one [`EventChip`] per occurrence that falls within
+/// `range`, using [`Event::occurrences`] (a no-op expansion for
+/// non-recurring events).
+fn expand_occurrences(events: &[Event], range: Range<OffsetDateTime>) -> Vec<EventChip> {
+    let mut chips = Vec::new();
+    for event in events {
+        for start in event.occurrences(range.clone()) {
+            chips.push(EventChip {
+                id: event.id,
+                calendar: event.calendar.clone(),
+                summary: event.summary.clone(),
+                start,
+            });
+        }
+    }
+    chips
+}
+
+/// Buckets `chips` by the calendar date they occur on, for the month grid.
+fn chips_by_day(chips: Vec<EventChip>) -> BTreeMap<time::Date, Vec<EventChip>> {
+    let mut map: BTreeMap<time::Date, Vec<EventChip>> = BTreeMap::new();
+    for chip in chips {
+        map.entry(chip.start.date()).or_default().push(chip);
+    }
+    map
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalCalendar {
@@ -41,7 +84,10 @@ impl LocalCalendar {
         }
     }
 
-    pub fn month_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
+    pub fn month_view<'a>(
+        &'a self,
+        events: &[Event],
+    ) -> impl Into<Element<'a, crate::app::Message>> {
         let weekday_headers = widget::row::with_children(vec![
             month::weekday_header("Sun"),
             month::weekday_header("Mon"),
@@ -53,7 +99,13 @@ impl LocalCalendar {
         ])
         .spacing(spacing().space_xxs);
 
-        let calendar_grid = month::month_grid(&self.selected_date, &self.current_date);
+        // The grid always displays 6 weeks (42 days); pad generously on
+        // both ends so occurrences from the leading/trailing prior/next
+        // month days are included too.
+        let range_start = self.selected_date.replace_day(1).unwrap() - time::Duration::days(7);
+        let range_end = range_start + time::Duration::days(49);
+        let chips = chips_by_day(expand_occurrences(events, range_start..range_end));
+        let calendar_grid = month::month_grid(&self.selected_date, &self.current_date, &chips);
 
         widget::column(Vec::new())
             .push(weekday_headers)
@@ -64,7 +116,10 @@ impl LocalCalendar {
             .padding([0, 0, spacing().space_xxs, 0])
     }
 
-    pub fn week_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
+    pub fn week_view<'a>(
+        &'a self,
+        events: &[Event],
+    ) -> impl Into<Element<'a, crate::app::Message>> {
         let selected_date = self.selected_date;
         let days_since_sunday = match selected_date.weekday() {
             Weekday::Sunday => 0,
@@ -97,7 +152,9 @@ impl LocalCalendar {
             header_row = header_row.push(day_header);
         }
 
-        let time_grid = week::week_grid(&week_start);
+        let range = week_start..(week_start + time::Duration::days(7));
+        let chips = expand_occurrences(events, range);
+        let time_grid = week::week_grid(&week_start, &chips);
 
         widget::column(Vec::new())
             .push(header_row)
@@ -109,8 +166,14 @@ impl LocalCalendar {
             .padding([0, 0, spacing().space_xxs, 0])
     }
 
-    pub fn day_view<'a>(&'a self) -> impl Into<Element<'a, crate::app::Message>> {
-        let time_grid = day::single_day_time_grid(&self.selected_date);
+    pub fn day_view<'a>(
+        &'a self,
+        events: &[Event],
+    ) -> impl Into<Element<'a, crate::app::Message>> {
+        let day_start = self.selected_date.replace_time(time::Time::MIDNIGHT);
+        let range = day_start..(day_start + time::Duration::days(1));
+        let chips = expand_occurrences(events, range);
+        let time_grid = day::single_day_time_grid(&self.selected_date, &chips);
 
         widget::column(Vec::new())
             .push(widget::scrollable(time_grid).height(Length::Fill))

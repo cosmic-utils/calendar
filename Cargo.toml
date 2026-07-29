@@ -12,12 +12,16 @@ vergen = { version = "8", features = ["git", "gitcl"] }
 [dependencies]
 accounts = { path = "../accounts" }
 async-trait = "0.1.89"
+chrono = "0.4"
+directories = "5"
 futures-util = "0.3.31"
 gcal_rs = "0.1.7"
 graph-rs-sdk = "3.0.1"
 i18n-embed-fl = "0.9.2"
+icalendar = { version = "0.17.13", features = ["time", "parser"] }
 open = "5.3.0"
 reqwest = "0.12.23"
+rrule = { version = "0.14.0", features = ["serde"] }
 rust-embed = "8.5.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
@@ -26,6 +30,7 @@ time = { version = "0.3.44", features = ["serde", "local-offset"] }
 tokio = { version = "1.41.0", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 
 [dependencies.i18n-embed]
 version = "0.15"
@@ -51,6 +56,8 @@ features = [
     "wayland",
     # GPU-accelerated rendering
     "wgpu",
+    # Native file dialogs (used for ICS import/export)
+    "xdg-portal",
 ]
 
 # Uncomment to test a locally-cloned libcosmic

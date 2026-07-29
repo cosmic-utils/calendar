@@ -1,5 +1,6 @@
 use crate::{models::Calendar, Result};
 pub mod google;
+pub mod ics;
 pub mod microsoft;
 
 use accounts::{
