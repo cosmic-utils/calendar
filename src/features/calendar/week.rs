@@ -5,7 +5,7 @@ use cosmic::{
 };
 use time::OffsetDateTime;
 
-use crate::components::calendar::EventChip;
+use super::EventChip;
 
 pub fn week_grid<'a>(
     week_start: &OffsetDateTime,

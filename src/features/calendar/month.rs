@@ -6,7 +6,7 @@ use cosmic::{
 use std::collections::BTreeMap;
 use time::{Date, OffsetDateTime, Weekday};
 
-use crate::components::calendar::EventChip;
+use super::EventChip;
 
 const MAX_VISIBLE_EVENTS_PER_DAY: usize = 3;
 

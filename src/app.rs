@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::components::LocalCalendar;
+use crate::features::calendar::LocalCalendar;
 use crate::shared::config::Config;
 use crate::fl;
 use crate::models::{

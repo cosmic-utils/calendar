@@ -5,7 +5,7 @@ use cosmic::{
 };
 use time::OffsetDateTime;
 
-use crate::components::calendar::EventChip;
+use super::EventChip;
 
 pub fn single_day_time_grid<'a>(
     selected_date: &OffsetDateTime,

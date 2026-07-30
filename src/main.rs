@@ -2,6 +2,7 @@
 
 mod app;
 mod components;
+mod features;
 mod models;
 mod notifications;
 mod services;
