@@ -1,7 +1,7 @@
 use cosmic::app::Settings;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-use crate::i18n;
+use crate::shared::i18n;
 
 pub fn settings() -> Settings {
     // Get the system's preferred languages.

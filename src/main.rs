@@ -2,15 +2,12 @@
 
 mod app;
 mod components;
-mod config;
-mod error;
-mod i18n;
 mod models;
 mod notifications;
 mod services;
-mod storage;
+mod shared;
 
-pub use error::{Error, Result};
+pub use shared::error::{Error, Result};
 
 fn main() -> cosmic::iced::Result {
     cosmic::app::run::<app::AppModel>(app::settings(), app::flags())

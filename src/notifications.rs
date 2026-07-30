@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use time::OffsetDateTime;
 
 use crate::models::{Event, EventId};
-use crate::storage::LocalStorage;
+use crate::shared::storage::LocalStorage;
 
 /// How far ahead to look for occurrences when checking for due reminders.
 /// Generous enough to cover any reasonable lead time set on a reminder.

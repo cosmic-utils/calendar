@@ -1,6 +1,5 @@
 mod calendar;
 mod event;
-mod ids;
 mod recurrence;
 
 pub use calendar::{
@@ -10,4 +9,4 @@ pub use event::{
     Attendee, AttendeeStatus, Event, EventKind, EventTime, ExternalRef, Reminder, TaskDetails,
     CURRENT_EVENT_SCHEMA_VERSION,
 };
-pub use ids::{CalendarId, EventId};
+pub use crate::shared::ids::{CalendarId, EventId};

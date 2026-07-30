@@ -8,7 +8,7 @@ use crate::models::{
     CalendarId, CalendarKey, Event, EventId, LocalCalendarMeta, CURRENT_CALENDAR_SCHEMA_VERSION,
     CURRENT_EVENT_SCHEMA_VERSION,
 };
-use crate::storage::{atomic, index::EventIndex, migration, paths};
+use super::{atomic, index::EventIndex, migration, paths};
 use crate::Result;
 
 /// The local, file-backed store for calendars and events created in this

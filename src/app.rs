@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use crate::components::LocalCalendar;
-use crate::config::Config;
+use crate::shared::config::Config;
 use crate::fl;
 use crate::models::{
     Calendar, CalendarId, CalendarKey, Event, EventId, EventKind, EventTime, LocalCalendarMeta,
     Reminder, Source, TaskDetails,
 };
 use crate::services::{ics, CalendarServiceFactory};
-use crate::storage::LocalStorage;
+use crate::shared::storage::LocalStorage;
 use crate::Result;
 use accounts::models::{Account, Service};
 use accounts::AccountsClient;
