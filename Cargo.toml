@@ -59,7 +59,6 @@ features = [
     "wgpu",
     # Native file dialogs (used for ICS import/export)
     "xdg-portal",
-    "rfd",
 ]
 
 # Uncomment to test a locally-cloned libcosmic

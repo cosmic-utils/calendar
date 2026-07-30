@@ -1,9 +1,10 @@
 use cosmic::widget::segmented_button::{self, MultiSelect};
 use cosmic::{iced::Length, theme::spacing, widget, Element};
 
-use crate::app::{
-    event_editor_months, EventEditorState, Message, RecurrenceEnd, RecurrenceFreq,
-    EVENT_EDITOR_MINUTES, EVENT_EDITOR_YEARS,
+use crate::app::Message;
+use crate::features::event::recurrence::{RecurrenceEnd, RecurrenceFreq};
+use crate::features::event::state::{
+    event_editor_months, EventEditorState, EVENT_EDITOR_MINUTES, EVENT_EDITOR_YEARS,
 };
 use crate::fl;
 use crate::models::{CalendarKey, LocalCalendarMeta};

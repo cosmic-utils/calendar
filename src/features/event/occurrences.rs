@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use rrule::{RRule, RRuleSet, Tz, Unvalidated};
 use time::OffsetDateTime;
 
-use super::Event;
+use super::model::Event;
 
 /// Maximum occurrences generated per query, guarding against unbounded
 /// RRULEs (e.g. no COUNT/UNTIL) combined with a huge query range.
@@ -75,8 +75,8 @@ impl Event {
     /// midnight UTC.
     pub fn start(&self) -> OffsetDateTime {
         match &self.time {
-            super::EventTime::Timed { start, .. } => *start,
-            super::EventTime::AllDay { start, .. } => {
+            super::model::EventTime::Timed { start, .. } => *start,
+            super::model::EventTime::AllDay { start, .. } => {
                 start.midnight().assume_offset(time::UtcOffset::UTC)
             }
         }
