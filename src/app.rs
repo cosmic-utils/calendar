@@ -9,7 +9,9 @@ use crate::features::event::state::{
 };
 use crate::shared::config::Config;
 use crate::fl;
-use crate::models::{Calendar, CalendarId, CalendarKey, Event, EventId, LocalCalendarMeta};
+use crate::features::calendar_management::model::{Calendar, CalendarKey, LocalCalendarMeta};
+use crate::features::event::model::Event;
+use crate::shared::ids::{CalendarId, EventId};
 use crate::features::accounts::CalendarServiceFactory;
 use crate::features::ics;
 use crate::shared::storage::LocalStorage;
@@ -272,7 +274,7 @@ impl cosmic::Application for AppModel {
             let mut storage = app.storage.lock().unwrap();
             if storage.list_calendars().is_empty() {
                 let personal = LocalCalendarMeta {
-                    id: crate::models::CalendarId::new(),
+                    id: crate::shared::ids::CalendarId::new(),
                     name: fl!("personal-calendar"),
                     description: None,
                     color: None,
@@ -525,7 +527,7 @@ impl cosmic::Application for AppModel {
             let storage = self.storage.lock().unwrap();
             let center = self.calendar.selected_date;
             let range = (center - time::Duration::days(60))..(center + time::Duration::days(60));
-            let hidden: std::collections::HashSet<crate::models::CalendarId> = storage
+            let hidden: std::collections::HashSet<crate::shared::ids::CalendarId> = storage
                 .list_calendars()
                 .into_iter()
                 .filter(|meta| !meta.visible)
@@ -779,7 +781,7 @@ impl cosmic::Application for AppModel {
                             .list_calendars()
                             .first()
                             .map(|meta| CalendarKey::Local(meta.id))
-                            .unwrap_or_else(|| CalendarKey::Local(crate::models::CalendarId::new()));
+                            .unwrap_or_else(|| CalendarKey::Local(crate::shared::ids::CalendarId::new()));
                         EventEditorState::new(calendar, date)
                     }
                 };

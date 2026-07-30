@@ -7,7 +7,7 @@ use crate::features::event::state::{
     event_editor_months, EventEditorState, EVENT_EDITOR_MINUTES, EVENT_EDITOR_YEARS,
 };
 use crate::fl;
-use crate::models::{CalendarKey, LocalCalendarMeta};
+use crate::features::calendar_management::model::{CalendarKey, LocalCalendarMeta};
 
 const WEEKDAY_LABELS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 

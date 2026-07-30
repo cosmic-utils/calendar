@@ -7,9 +7,9 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::features::accounts as services;
-use crate::models::CalendarId;
+use crate::shared::ids::CalendarId;
 
-/// Where a [`Calendar`] or [`crate::models::Event`] originates from.
+/// Where a [`Calendar`] or [`crate::features::event::model::Event`] originates from.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Source {
     /// Created and stored only in this app.
@@ -36,7 +36,7 @@ pub struct LocalCalendarMeta {
     pub visible: bool,
 }
 
-/// A common key that [`crate::models::Event`] uses to reference its parent
+/// A common key that [`crate::features::event::model::Event`] uses to reference its parent
 /// calendar, spanning both locally-created calendars and remote provider
 /// calendars so both can be addressed uniformly.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]

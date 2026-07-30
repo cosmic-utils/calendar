@@ -1,6 +1,8 @@
 use super::recurrence::RecurrenceRule;
 use crate::fl;
-use crate::models::{CalendarKey, Event, EventId, EventKind, EventTime, Reminder, Source, TaskDetails};
+use crate::features::calendar_management::model::{CalendarKey, Source};
+use crate::features::event::model::{Event, EventKind, EventTime, Reminder, TaskDetails};
+use crate::shared::ids::EventId;
 use cosmic::widget;
 use time::OffsetDateTime;
 

@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use graph_rs_sdk::GraphClient;
 
 use crate::{
-    models::Calendar,
+    features::calendar_management::model::Calendar,
     features::accounts::{microsoft::models::CalendarsResponse, CalendarService},
     Error, Result,
 };

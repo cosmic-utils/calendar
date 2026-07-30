@@ -4,15 +4,16 @@ use std::ops::Range;
 use time::OffsetDateTime;
 use tracing::warn;
 
-use crate::models::{
-    CalendarId, CalendarKey, Event, EventId, LocalCalendarMeta, CURRENT_CALENDAR_SCHEMA_VERSION,
-    CURRENT_EVENT_SCHEMA_VERSION,
+use crate::features::calendar_management::model::{
+    CalendarKey, LocalCalendarMeta, CURRENT_CALENDAR_SCHEMA_VERSION,
 };
+use crate::features::event::model::{Event, CURRENT_EVENT_SCHEMA_VERSION};
+use crate::shared::ids::{CalendarId, EventId};
 use super::{atomic, index::EventIndex, migration, paths};
 use crate::Result;
 
 /// The local, file-backed store for calendars and events created in this
-/// app. Provider-fetched calendars (`crate::models::Calendar`) are not
+/// app. Provider-fetched calendars (`crate::features::calendar_management::model::Calendar`) are not
 /// persisted here; they're refetched from the network as today.
 pub struct LocalStorage {
     index: EventIndex,

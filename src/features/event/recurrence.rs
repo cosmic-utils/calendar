@@ -1,7 +1,7 @@
 /// The recurrence frequencies offered in the event editor, mapped to/from a
 /// plain RFC 5545 `RRULE` string (no custom intervals/exceptions in the UI
 /// yet — those can be added to the RRULE string format later without
-/// changing the stored [`crate::models::Event::rrule`] shape).
+/// changing the stored [`crate::features::event::model::Event::rrule`] shape).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecurrenceFreq {
     None,
@@ -63,7 +63,7 @@ pub enum RecurrenceEnd {
 
 /// The full set of recurrence options exposed by the event editor's advanced
 /// recurrence sub-form. Converts to/from a plain RFC 5545 RRULE string, the
-/// only representation actually stored on [`crate::models::Event::rrule`] —
+/// only representation actually stored on [`crate::features::event::model::Event::rrule`] —
 /// the rest of the app (`Event::occurrences`) already handles arbitrary
 /// valid RRULE strings, so this is purely an editor-side convenience.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,7 +123,7 @@ impl RecurrenceRule {
         Some(parts.join(";"))
     }
 
-    /// Parses an existing RRULE string (as read from [`crate::models::Event::rrule`])
+    /// Parses an existing RRULE string (as read from [`crate::features::event::model::Event::rrule`])
     /// back into editable form. Falls back to [`Self::NONE`] on any parse error
     /// rather than failing the whole editor open.
     pub fn from_rrule_string(rrule: Option<&str>) -> Self {

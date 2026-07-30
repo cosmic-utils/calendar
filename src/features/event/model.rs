@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use time::{Date, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::models::{CalendarKey, EventId, Source};
+use crate::features::calendar_management::model::{CalendarKey, Source};
+use crate::shared::ids::EventId;
 
 /// The current on-disk shape of an [`Event`]. Bump when the struct's fields
 /// change shape and add a matching arm in `src/storage/migration.rs`.
@@ -88,7 +89,7 @@ pub struct Event {
     pub timezone: Option<String>,
     /// Per-event override of the calendar's color.
     pub color: Option<String>,
-    /// RFC 5545 RRULE string, expanded on demand via [`crate::models::recurrence`].
+    /// RFC 5545 RRULE string, expanded on demand via `crate::features::event::occurrences`.
     pub rrule: Option<String>,
     /// RFC 5545 EXDATE: occurrences of `rrule` to exclude.
     pub exdates: Vec<OffsetDateTime>,

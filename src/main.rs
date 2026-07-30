@@ -2,7 +2,6 @@
 
 mod app;
 mod features;
-mod models;
 mod shared;
 
 pub use shared::error::{Error, Result};

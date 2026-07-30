@@ -4,7 +4,7 @@ use uuid::Uuid;
 /// Stable identifier for a locally-created event or task.
 ///
 /// Kept stable across edits (and across a future provider sync) so that
-/// [`crate::models::ExternalRef`] can be attached without changing identity.
+/// [`crate::features::event::model::ExternalRef`] can be attached without changing identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct EventId(pub Uuid);
 

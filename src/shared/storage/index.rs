@@ -3,7 +3,9 @@ use std::ops::Range;
 
 use time::OffsetDateTime;
 
-use crate::models::{CalendarKey, Event, EventId};
+use crate::features::calendar_management::model::CalendarKey;
+use crate::features::event::model::Event;
+use crate::shared::ids::EventId;
 
 /// In-memory index over all loaded [`Event`]s, rebuilt (or loaded from a
 /// disposable cache) at startup so date-range queries don't need to scan
@@ -110,8 +112,8 @@ impl EventIndex {
 
 fn event_sort_key(event: &Event) -> OffsetDateTime {
     match &event.time {
-        crate::models::EventTime::Timed { start, .. } => *start,
-        crate::models::EventTime::AllDay { start, .. } => {
+        crate::features::event::model::EventTime::Timed { start, .. } => *start,
+        crate::features::event::model::EventTime::AllDay { start, .. } => {
             start.midnight().assume_offset(time::UtcOffset::UTC)
         }
     }

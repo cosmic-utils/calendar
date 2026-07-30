@@ -1,4 +1,4 @@
-use crate::{models::Calendar, Result};
+use crate::{features::calendar_management::model::Calendar, Result};
 pub mod google;
 pub mod microsoft;
 

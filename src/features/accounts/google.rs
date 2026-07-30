@@ -2,7 +2,7 @@ use accounts::{models::Account, AccountsClient};
 use async_trait::async_trait;
 use gcal_rs::{GCalClient, OToken};
 
-use crate::{features::accounts::CalendarService, models::Calendar, Result};
+use crate::{features::accounts::CalendarService, features::calendar_management::model::Calendar, Result};
 
 #[derive(Clone)]
 pub struct GoogleCalendarService {

@@ -13,7 +13,9 @@ use icalendar::{
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::models::{CalendarKey, Event, EventId, EventKind, EventTime, Source, TaskDetails};
+use crate::features::calendar_management::model::{CalendarKey, Source};
+use crate::features::event::model::{Event, EventKind, EventTime, TaskDetails};
+use crate::shared::ids::EventId;
 use crate::Result;
 
 fn from_utc(dt: DateTime<Utc>) -> OffsetDateTime {
@@ -235,7 +237,7 @@ pub fn import_ics(text: &str, target: CalendarKey) -> Result<Vec<Event>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::CalendarId;
+    use crate::shared::ids::CalendarId;
 
     #[test]
     fn round_trips_a_timed_event() {

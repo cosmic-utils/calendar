@@ -1,4 +1,6 @@
-use crate::models::{CalendarKey, Event, EventId};
+use crate::features::calendar_management::model::CalendarKey;
+use crate::features::event::model::Event;
+use crate::shared::ids::EventId;
 use crate::Result;
 use cosmic::{
     iced::{alignment::Horizontal, Length},

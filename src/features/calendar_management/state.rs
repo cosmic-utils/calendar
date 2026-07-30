@@ -1,4 +1,4 @@
-use crate::models::CalendarId;
+use crate::shared::ids::CalendarId;
 
 /// State of an in-progress edit to a calendar's name/color, shown inline in
 /// the calendar manager.

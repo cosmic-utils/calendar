@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use directories::ProjectDirs;
 
-use crate::models::{CalendarId, EventId};
+use crate::shared::ids::{CalendarId, EventId};
 
 fn project_dirs() -> ProjectDirs {
     ProjectDirs::from("dev", "edfloreshz", "Calendar")
