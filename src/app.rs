@@ -2,6 +2,7 @@
 
 use crate::features::calendar::LocalCalendar;
 use crate::features::event::recurrence::{RecurrenceEnd, RecurrenceFreq};
+use crate::features::calendar_management::state::{CalendarEditState, CalendarManagerState};
 use crate::features::event::state::{
     build_reminders_model, event_editor_months, shift_event_editor_start, EventEditorState,
     EVENT_EDITOR_MINUTES, EVENT_EDITOR_YEARS,
@@ -91,22 +92,6 @@ pub struct AppModel {
     // Reminders already notified this session, so the periodic check
     // doesn't re-fire the same notification every tick.
     fired_reminders: std::collections::HashSet<(EventId, OffsetDateTime)>,
-}
-
-/// State of an in-progress edit to a calendar's name/color, shown inline in
-/// the calendar manager.
-#[derive(Debug, Clone)]
-pub struct CalendarEditState {
-    pub id: CalendarId,
-    pub name: String,
-    pub color: String,
-}
-
-/// State backing the calendar management drawer.
-#[derive(Debug, Clone, Default)]
-pub struct CalendarManagerState {
-    pub new_name: String,
-    pub editing: Option<CalendarEditState>,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -1508,7 +1493,7 @@ impl AppModel {
 
     /// The calendar creation/rename form for the context drawer.
     pub fn calendar_manager_view<'a>(&'a self) -> Element<'a, Message> {
-        crate::components::calendar_manager::view(&self.calendar_manager)
+        crate::features::calendar_management::view::view(&self.calendar_manager)
     }
 
     /// The list of events matching `self.search_query`, shown in place of

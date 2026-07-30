@@ -1,6 +1,7 @@
 use cosmic::{iced::Length, theme::spacing, widget, Element};
 
-use crate::app::{CalendarManagerState, Message};
+use crate::app::Message;
+use crate::features::calendar_management::state::CalendarManagerState;
 use crate::fl;
 
 /// Single-form drawer content for creating a new calendar or editing an

@@ -1,6 +1,4 @@
-mod calendar;
-
-pub use calendar::{
+pub use crate::features::calendar_management::model::{
     Calendar, CalendarKey, LocalCalendarMeta, Source, CURRENT_CALENDAR_SCHEMA_VERSION,
 };
 pub use crate::features::event::model::{
