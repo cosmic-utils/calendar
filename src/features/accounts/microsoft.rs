@@ -4,7 +4,7 @@ use graph_rs_sdk::GraphClient;
 
 use crate::{
     models::Calendar,
-    services::{microsoft::models::CalendarsResponse, CalendarService},
+    features::accounts::{microsoft::models::CalendarsResponse, CalendarService},
     Error, Result,
 };
 

@@ -3,7 +3,6 @@
 mod app;
 mod features;
 mod models;
-mod services;
 mod shared;
 
 pub use shared::error::{Error, Result};

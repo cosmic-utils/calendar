@@ -10,7 +10,8 @@ use crate::features::event::state::{
 use crate::shared::config::Config;
 use crate::fl;
 use crate::models::{Calendar, CalendarId, CalendarKey, Event, EventId, LocalCalendarMeta};
-use crate::services::{ics, CalendarServiceFactory};
+use crate::features::accounts::CalendarServiceFactory;
+use crate::features::ics;
 use crate::shared::storage::LocalStorage;
 use crate::Result;
 use accounts::models::{Account, Service};

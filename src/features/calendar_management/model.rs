@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::features::accounts as services;
 use crate::models::CalendarId;
-use crate::services;
 
 /// Where a [`Calendar`] or [`crate::models::Event`] originates from.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
