@@ -72,6 +72,12 @@ pub struct AppModel {
     storage: Arc<Mutex<LocalStorage>>,
     // State of the event editor drawer, when open.
     editing_event: Option<EventEditorState>,
+    // Multi-select segmented button backing the reminder-preset picker in
+    // the event editor. Rebuilt from `editing_event.reminders` whenever the
+    // editor opens or a preset is toggled; `Vec<i64>` remains the source of
+    // truth that's actually persisted, since `segmented_button::Model` isn't
+    // `Clone` and can't live inside `EventEditorState`.
+    reminders_model: widget::segmented_button::Model<widget::segmented_button::MultiSelect>,
     // State of the calendar manager drawer.
     calendar_manager: CalendarManagerState,
     // Nav bar entity ids for the "Calendars" header + per-calendar rows,
@@ -325,6 +331,13 @@ pub struct EventEditorState {
     /// Minutes-before-start lead times for each reminder attached to this
     /// event.
     pub reminders: Vec<i64>,
+    /// Current text in the "custom reminder" minutes input, offered
+    /// alongside the fixed presets since those don't cover every lead time
+    /// someone might want.
+    pub custom_reminder_input: String,
+    /// Whether the custom reminder field (a `widget::editable_input`) is
+    /// currently showing its text box rather than its read-only label.
+    pub custom_reminder_editing: bool,
     /// The specific occurrence that was clicked to open this editor (equal
     /// to `start` for non-recurring events and new events), used to record
     /// which single occurrence to exclude via EXDATE on "delete this
@@ -334,6 +347,50 @@ pub struct EventEditorState {
 
 /// The lead-time presets offered when adding a reminder in the event editor.
 pub const REMINDER_PRESETS_MINUTES: [i64; 6] = [0, 5, 10, 15, 30, 60];
+
+/// The label shown on a reminder preset's segmented-button entry.
+pub fn reminder_label(minutes: i64) -> String {
+    if minutes == 0 {
+        fl!("reminder-at-start")
+    } else if minutes % 60 == 0 {
+        format!("{}h", minutes / 60)
+    } else {
+        format!("{minutes}m")
+    }
+}
+
+/// Builds the reminders multi-select model: one entry per preset, plus one
+/// for each of `reminders`'s lead times that isn't already covered by a
+/// preset (added via the custom-minutes input). All are activated, since a
+/// non-preset entry only exists in the model because it's in `reminders`;
+/// deactivating one removes it from `reminders` entirely (there's no default
+/// state for it to fall back to) and it disappears next rebuild.
+pub fn build_reminders_model(
+    reminders: &[i64],
+) -> widget::segmented_button::Model<widget::segmented_button::MultiSelect> {
+    let mut minutes_list: Vec<i64> = REMINDER_PRESETS_MINUTES.to_vec();
+    for minutes in reminders {
+        if !minutes_list.contains(minutes) {
+            minutes_list.push(*minutes);
+        }
+    }
+    minutes_list.sort_unstable();
+
+    let mut builder =
+        widget::segmented_button::Model::<widget::segmented_button::MultiSelect>::builder();
+    for minutes in minutes_list {
+        let is_on = reminders.contains(&minutes);
+        builder = builder.insert(|b| {
+            let b = b.text(reminder_label(minutes)).data(minutes);
+            if is_on {
+                b.activate()
+            } else {
+                b
+            }
+        });
+    }
+    builder.build()
+}
 
 impl EventEditorState {
     fn new(calendar: CalendarKey, start: OffsetDateTime) -> Self {
@@ -349,6 +406,8 @@ impl EventEditorState {
             end: start + time::Duration::hours(1),
             recurrence: RecurrenceRule::NONE,
             reminders: Vec::new(),
+            custom_reminder_input: String::new(),
+            custom_reminder_editing: false,
             occurrence_start: start,
         }
     }
@@ -379,6 +438,8 @@ impl EventEditorState {
                 .iter()
                 .map(|reminder| reminder.minutes_before)
                 .collect(),
+            custom_reminder_input: String::new(),
+            custom_reminder_editing: false,
             occurrence_start,
         }
     }
@@ -514,6 +575,7 @@ pub enum Message {
     IcsImported(std::result::Result<usize, String>),
     ExportIcs,
     IcsExported(std::result::Result<PathBuf, String>),
+    OpenNewCalendarForm,
     CalendarManagerNewNameChanged(String),
     CreateCalendar,
     CalendarCreated(std::result::Result<LocalCalendarMeta, String>),
@@ -529,7 +591,10 @@ pub enum Message {
     CalendarDeleted(std::result::Result<CalendarId, String>),
     SearchChanged(String),
     SelectSearchResult(EventId, OffsetDateTime),
-    EventEditorReminderToggled(i64, bool),
+    EventEditorReminderToggled(widget::segmented_button::Entity),
+    EventEditorCustomReminderInputChanged(String),
+    EventEditorCustomReminderEditToggled(bool),
+    EventEditorAddCustomReminder,
     CheckReminders,
     RemindersFired(Vec<(EventId, OffsetDateTime)>),
 }
@@ -613,6 +678,7 @@ impl cosmic::Application for AppModel {
                 LocalStorage::empty()
             }))),
             editing_event: None,
+            reminders_model: build_reminders_model(&[]),
             calendar_manager: CalendarManagerState::default(),
             calendar_nav_ids: Vec::new(),
             search_query: String::new(),
@@ -657,11 +723,6 @@ impl cosmic::Application for AppModel {
             menu::items(
                 &self.key_binds,
                 vec![
-                    menu::Item::Button(
-                        fl!("manage-calendars"),
-                        None,
-                        MenuAction::ManageCalendars,
-                    ),
                     menu::Item::Button(fl!("import-ics"), None, MenuAction::ImportIcs),
                     menu::Item::Button(fl!("export-ics"), None, MenuAction::ExportIcs),
                     menu::Item::Button(fl!("about"), None, MenuAction::About),
@@ -795,6 +856,47 @@ impl cosmic::Application for AppModel {
         Some(&self.nav)
     }
 
+    /// The nav bar's per-item right-click menu: "New calendar" on the
+    /// "Calendars" header row, "Rename"/"Delete" on each calendar row.
+    /// `nav_bar`'s context menu implementation asserts that this yields
+    /// exactly one entry (possibly empty) per nav item, in iteration order.
+    fn nav_context_menu(&self) -> Option<Vec<menu::Tree<cosmic::Action<Self::Message>>>> {
+        let can_delete = self.storage.lock().unwrap().list_calendars().len() > 1;
+        let header_id = self.calendar_nav_ids.first().copied();
+
+        Some(menu::nav_context(
+            &HashMap::new(),
+            self.nav
+                .iter()
+                .map(|id| {
+                    if let Some(calendar_id) = self.nav.data::<CalendarId>(id).copied() {
+                        let mut items = vec![menu::Item::Button(
+                            fl!("rename"),
+                            None,
+                            NavMenuAction::RenameCalendar(calendar_id),
+                        )];
+                        if can_delete {
+                            items.push(menu::Item::Button(
+                                fl!("delete"),
+                                None,
+                                NavMenuAction::DeleteCalendar(calendar_id),
+                            ));
+                        }
+                        items
+                    } else if Some(id) == header_id {
+                        vec![menu::Item::Button(
+                            fl!("new-calendar"),
+                            None,
+                            NavMenuAction::NewCalendar,
+                        )]
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect(),
+        ))
+    }
+
     /// Display a context drawer if the context page is requested.
     fn context_drawer<'a>(&'a self) -> Option<context_drawer::ContextDrawer<'a, Self::Message>> {
         if !self.core.window.show_context {
@@ -807,24 +909,23 @@ impl cosmic::Application for AppModel {
                 Message::ToggleContextPage(ContextPage::About),
             )
             .title(fl!("about")),
-            ContextPage::EventEditor => {
-                let is_editing = self
-                    .editing_event
-                    .as_ref()
-                    .is_some_and(|state| state.event_id.is_some());
-                context_drawer::context_drawer(self.event_editor_view(), Message::CloseEventEditor)
-                    .title(if is_editing {
-                        fl!("edit-event")
-                    } else {
-                        fl!("new-event")
-                    })
-            }
             ContextPage::CalendarManager => context_drawer::context_drawer(
                 self.calendar_manager_view(),
                 Message::ToggleContextPage(ContextPage::CalendarManager),
             )
-            .title(fl!("calendars")),
+            .title(if self.calendar_manager.editing.is_some() {
+                fl!("edit-calendar")
+            } else {
+                fl!("new-calendar")
+            }),
         })
+    }
+
+    /// Displays the event creation/editing form as a centered dialog rather
+    /// than a side drawer: it's a focused, modal task (unlike the calendar
+    /// manager or about page, which make sense alongside the calendar view).
+    fn dialog<'a>(&'a self) -> Option<Element<'a, Self::Message>> {
+        self.editing_event.as_ref().map(|_| self.event_editor_view())
     }
 
     /// Describes the interface based on the current state of the application model.
@@ -1101,13 +1202,11 @@ impl cosmic::Application for AppModel {
                         EventEditorState::new(calendar, date)
                     }
                 };
+                self.reminders_model = build_reminders_model(&state.reminders);
                 self.editing_event = Some(state);
-                self.context_page = ContextPage::EventEditor;
-                self.core.window.show_context = true;
             }
             Message::CloseEventEditor => {
                 self.editing_event = None;
-                self.core.window.show_context = false;
             }
             Message::EventEditorSummaryChanged(value) => {
                 if let Some(state) = self.editing_event.as_mut() {
@@ -1299,7 +1398,6 @@ impl cosmic::Application for AppModel {
             Message::EventSaved(result) => match result {
                 Ok(_event) => {
                     self.editing_event = None;
-                    self.core.window.show_context = false;
                 }
                 Err(err) => tracing::error!("failed to save event: {err}"),
             },
@@ -1344,7 +1442,6 @@ impl cosmic::Application for AppModel {
             Message::EventDeleted(result) => match result {
                 Ok(_id) => {
                     self.editing_event = None;
-                    self.core.window.show_context = false;
                 }
                 Err(err) => tracing::error!("failed to delete event: {err}"),
             },
@@ -1427,6 +1524,11 @@ impl cosmic::Application for AppModel {
                 Ok(path) => tracing::info!("exported calendar to {}", path.display()),
                 Err(err) => tracing::error!("failed to export ICS file: {err}"),
             },
+            Message::OpenNewCalendarForm => {
+                self.calendar_manager = CalendarManagerState::default();
+                self.context_page = ContextPage::CalendarManager;
+                self.core.window.show_context = true;
+            }
             Message::CalendarManagerNewNameChanged(value) => {
                 self.calendar_manager.new_name = value;
             }
@@ -1458,6 +1560,7 @@ impl cosmic::Application for AppModel {
             Message::CalendarCreated(result) => match result {
                 Ok(_meta) => {
                     self.calendar_manager.new_name.clear();
+                    self.core.window.show_context = false;
                     self.refresh_calendar_nav();
                 }
                 Err(err) => tracing::error!("failed to create calendar: {err}"),
@@ -1469,6 +1572,8 @@ impl cosmic::Application for AppModel {
                         name: meta.name.clone(),
                         color: meta.color.clone().unwrap_or_default(),
                     });
+                    self.context_page = ContextPage::CalendarManager;
+                    self.core.window.show_context = true;
                 }
             }
             Message::CalendarEditNameChanged(value) => {
@@ -1506,12 +1611,14 @@ impl cosmic::Application for AppModel {
             Message::CalendarEditSaved(result) => match result {
                 Ok(()) => {
                     self.calendar_manager.editing = None;
+                    self.core.window.show_context = false;
                     self.refresh_calendar_nav();
                 }
                 Err(err) => tracing::error!("failed to save calendar: {err}"),
             },
             Message::CancelCalendarEdit => {
                 self.calendar_manager.editing = None;
+                self.core.window.show_context = false;
             }
             Message::ToggleCalendarVisibility(id, visible) => {
                 let storage = self.storage.clone();
@@ -1564,14 +1671,44 @@ impl cosmic::Application for AppModel {
                     start,
                 )));
             }
-            Message::EventEditorReminderToggled(minutes, on) => {
+            Message::EventEditorReminderToggled(entity) => {
+                let Some(minutes) = self.reminders_model.data::<i64>(entity).copied() else {
+                    return Task::batch(tasks);
+                };
+                let now_on = !self.reminders_model.is_active(entity);
                 if let Some(state) = self.editing_event.as_mut() {
-                    if on {
+                    if now_on {
                         if !state.reminders.contains(&minutes) {
                             state.reminders.push(minutes);
                         }
                     } else {
                         state.reminders.retain(|m| *m != minutes);
+                    }
+                    // Rebuilt rather than toggled in place: a custom (non-preset)
+                    // entry has no "off" state to fall back to, so turning it off
+                    // must drop it from the model entirely, not just deactivate it.
+                    self.reminders_model = build_reminders_model(&state.reminders);
+                }
+            }
+            Message::EventEditorCustomReminderInputChanged(value) => {
+                if let Some(state) = self.editing_event.as_mut() {
+                    state.custom_reminder_input = value;
+                }
+            }
+            Message::EventEditorCustomReminderEditToggled(editing) => {
+                if let Some(state) = self.editing_event.as_mut() {
+                    state.custom_reminder_editing = editing;
+                }
+            }
+            Message::EventEditorAddCustomReminder => {
+                if let Some(state) = self.editing_event.as_mut() {
+                    if let Ok(minutes) = state.custom_reminder_input.trim().parse::<i64>() {
+                        if minutes >= 0 && !state.reminders.contains(&minutes) {
+                            state.reminders.push(minutes);
+                            state.custom_reminder_input.clear();
+                            state.custom_reminder_editing = false;
+                            self.reminders_model = build_reminders_model(&state.reminders);
+                        }
                     }
                 }
             }
@@ -1721,7 +1858,7 @@ impl AppModel {
                 let storage = self.storage.lock().unwrap();
                 let mut calendars = storage.list_calendars();
                 calendars.sort_by(|a, b| a.name.cmp(&b.name));
-                crate::components::event_editor::view(state, &calendars)
+                crate::components::event_editor::view(state, &calendars, &self.reminders_model)
             }
             None => widget::text::body("").into(),
         }
@@ -1774,12 +1911,9 @@ impl AppModel {
         self.calendar_nav_ids = new_ids;
     }
 
-    /// The calendar management form for the context drawer.
+    /// The calendar creation/rename form for the context drawer.
     pub fn calendar_manager_view<'a>(&'a self) -> Element<'a, Message> {
-        let storage = self.storage.lock().unwrap();
-        let mut calendars = storage.list_calendars();
-        calendars.sort_by(|a, b| a.name.cmp(&b.name));
-        crate::components::calendar_manager::view(&calendars, &self.calendar_manager)
+        crate::components::calendar_manager::view(&self.calendar_manager)
     }
 
     /// The list of events matching `self.search_query`, shown in place of
@@ -1846,7 +1980,6 @@ pub enum Tab {
 pub enum ContextPage {
     #[default]
     About,
-    EventEditor,
     CalendarManager,
 }
 
@@ -1855,7 +1988,6 @@ pub enum MenuAction {
     About,
     ImportIcs,
     ExportIcs,
-    ManageCalendars,
 }
 
 impl menu::action::MenuAction for MenuAction {
@@ -1866,7 +1998,30 @@ impl menu::action::MenuAction for MenuAction {
             MenuAction::About => Message::ToggleContextPage(ContextPage::About),
             MenuAction::ImportIcs => Message::ImportIcs,
             MenuAction::ExportIcs => Message::ExportIcs,
-            MenuAction::ManageCalendars => Message::ToggleContextPage(ContextPage::CalendarManager),
+        }
+    }
+}
+
+/// Actions offered by the nav bar's per-item context menu (right-click),
+/// covering calendar creation/rename/delete now that calendar management is
+/// merged into the nav bar instead of a separate list drawer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NavMenuAction {
+    NewCalendar,
+    RenameCalendar(CalendarId),
+    DeleteCalendar(CalendarId),
+}
+
+impl menu::action::MenuAction for NavMenuAction {
+    type Message = cosmic::Action<Message>;
+
+    fn message(&self) -> Self::Message {
+        match self {
+            NavMenuAction::NewCalendar => cosmic::Action::App(Message::OpenNewCalendarForm),
+            NavMenuAction::RenameCalendar(id) => {
+                cosmic::Action::App(Message::StartEditCalendar(*id))
+            }
+            NavMenuAction::DeleteCalendar(id) => cosmic::Action::App(Message::DeleteCalendar(*id)),
         }
     }
 }

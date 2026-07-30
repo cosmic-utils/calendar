@@ -39,7 +39,8 @@ delete-series = Delete entire series
 
 import-ics = Import calendar…
 export-ics = Export calendar…
-manage-calendars = Manage calendars…
+new-calendar = New calendar
+edit-calendar = Edit calendar
 calendars = Calendars
 new-calendar-name = New calendar name
 create = Create
@@ -48,5 +49,7 @@ rename = Rename
 search = Search events…
 no-results = No matching events
 reminders = Reminders
+reminders-caption = Notify before the event starts. Select any number of reminders.
 reminder-at-start = At start
+custom-reminder-placeholder = Custom reminder (minutes before)
 
